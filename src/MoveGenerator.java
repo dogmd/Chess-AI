@@ -47,7 +47,7 @@ public class MoveGenerator {
                 break;
         }
         moves.removeIf(Objects::isNull);
-        if (!includeThreats) {
+        if (p.type == PieceType.KING || board.isPinned(p) || board.isChecked()) {
             moves.removeIf(move -> (resultsInCheck(board, move)));
         }
         return moves;
@@ -105,7 +105,7 @@ public class MoveGenerator {
             return board.threatening.contains(move.end);
         } else if (board.multiCheck) {
             return true;
-        } else if (board.isChecked(board.activeColor)) {
+        } else if (board.isChecked()) {
             return !board.checkPath.contains(move.end);
         }
         return false;

@@ -1,10 +1,11 @@
-public class Move {
+public class Move implements Comparable<Move> {
     Square start, end;
     Piece actor;
     Piece captured;
     int type;
     PieceType promoteTo;
     boolean firstMove, isThreat = true;
+    double score;
 
     public static final int CASTLE = 1;
     public static final int PROMOTION = 2;
@@ -55,6 +56,10 @@ public class Move {
     }
 
     public String toString() {
-        return "\n{start: " + start + ", end: " + end + ", actor: " + actor.getChar() + end + ", captured: " + captured + ", type: " + type + ", promoted_to: " + promoteTo + "}";
+        return "\n{start: " + start + ", end: " + end + ", actor: " + actor.getChar() + end + ", captured: " + captured + ", type: " + type + ", promoted_to: " + promoteTo + ", score: " + score + "}";
+    }
+
+    public int compareTo(Move move) {
+        return (int)(this.score - move.score);
     }
 }

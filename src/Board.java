@@ -219,6 +219,15 @@ public class Board {
         updateInfo();
     }
 
+    public boolean isPinned(Piece p) {
+        for (Pin pin : pins) {
+            if (pin.piece == p) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void unmakeMove(Move move) {
         if (move.type == Move.EN_PASSANT) {
             move.end.setPiece(null);
@@ -306,12 +315,52 @@ public class Board {
         }
     }
 
-    public boolean isChecked(int color) {
-        if (pieces.get(PieceType.KING).get(color).size() == 0) {
+    public boolean isChecked() {
+        if (pieces.get(PieceType.KING).get(activeColor).size() == 0) {
             return true;
         }
-        King king = (King) pieces.get(PieceType.KING).get(color).get(0);
+        King king = (King) pieces.get(PieceType.KING).get(activeColor).get(0);
         return threatening.contains(king.square);
+    }
+
+    public boolean isStalemate(int color) {
+        List<Piece> kings = pieces.get(PieceType.KING).get(color);
+        boolean onlyKings = true;
+        for (List<List<Piece>> pieces : pieces.values()) {
+            for (List<Piece> pieceColor : pieces) {
+                for (Piece p : pieceColor) {
+                    if (p.type != PieceType.KING) {
+                        onlyKings = false;
+                        break;
+                    }
+                }
+            }
+        }
+        if (onlyKings) {
+            return true;
+        }
+        if (kings.size() > 0) {
+            Piece king = kings.get(0);
+            if (!threatening.contains(king.square)) {
+                return moves.size() == 0;
+            } else {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    public boolean isCheckmate() {
+        List<Piece> kings = pieces.get(PieceType.KING).get(activeColor);
+        if (kings.size() > 0) {
+            Piece king = kings.get(0);
+            if (threatening.contains(king.square)) {
+                return moves.size() == 0;
+            } else {
+                return false;
+            }
+        }
+        return true;
     }
 
     public String toFen() {

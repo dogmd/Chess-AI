@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class ScottAgent extends Agent {
@@ -15,9 +16,21 @@ public class ScottAgent extends Agent {
         }
     }
 
-//    public double getMoveScore() {
-//
-//    }
+    public double getMoveScore(Game g, Move move) {
+        double total = 0;
+        if (move.isCapture()) {
+            total += 10 * (Piece.getWeight(move.captured.type) - Piece.getWeight(move.actor.type));
+        }
+        if (move.type == Move.PROMOTION) {
+            total += 2 * Piece.getWeight(move.promoteTo);
+        }
+        for (Piece p : g.board.pieces.get(PieceType.PAWN).get(Piece.getOpposite(move.actor.color))) {
+            if (p.threatening.contains(move.end)) {
+                total -= Piece.getWeight(move.actor.type);
+            }
+        }
+        return total;
+    }
 
     public double kingTrapWeight(Game g) {
         double total = 0;
@@ -42,11 +55,11 @@ public class ScottAgent extends Agent {
         return total * 10 * endgameWeight;
     }
 
-
     public double getScore(Game g) {
         double total = 0;
-        total += (100 * g.getMaterialScore() + g.getMobilityDiff()) * (color == Piece.WHITE ? 1 : -1);
-        if (g.board.isChecked(g.getActiveColor())) {
+        total += 100 * g.getMaterialScore() * (color == Piece.WHITE ? 1 : -1);
+        total += g.getMobilityDiff();
+        if (g.board.isChecked()) {
             total += 200 * (g.getActiveColor() == color ? -1 : 1);
         }
         total += kingTrapWeight(g);
@@ -55,8 +68,11 @@ public class ScottAgent extends Agent {
 
     public MovePath search(Game g, int depth, double alpha, double beta, MovePath path) {
         ArrayList<Move> moves = new ArrayList<>(g.board.moves);
+        for (Move move : moves) {
+            move.score = getMoveScore(g, move);
+        }
         if (moves.size() == 0) {
-            if (g.board.isChecked(g.getActiveColor())) {
+            if (g.board.isChecked()) {
                 path.score = (g.getActiveColor() == color ? -1 : 1) * 9999999;
                 return path;
             }
@@ -68,6 +84,12 @@ public class ScottAgent extends Agent {
             return path;
         } else {
             boolean maximizingPlayer = g.getActiveColor() == color;
+            if (maximizingPlayer) {
+                Collections.sort(moves, Collections.reverseOrder());
+            } else {
+                Collections.sort(moves);
+            }
+
             if (maximizingPlayer) {
                 MovePath bestPath = new MovePath(null, null, -999999);
                 for (Move move : moves) {

@@ -1,5 +1,4 @@
 import java.util.ArrayList;
-import java.util.List;
 
 public class Game {
     Board board;
@@ -64,7 +63,7 @@ public class Game {
     }
 
     public int getMobilityDiff() {
-        return getMoves(Piece.WHITE).size() - getMoves(Piece.BLACK).size();
+        return board.moves.size() - board.threatening.size();
     }
 
     public void makeMove(Move move) {
@@ -95,9 +94,9 @@ public class Game {
     }
 
     public void checkSetEndState() {
-        if (isStalemate(getActiveColor())) {
+        if (board.isStalemate(getActiveColor())) {
             gameState = GameState.DRAW;
-        } else if (isCheckmate()) {
+        } else if (board.isCheckmate()) {
             setWinner(getActiveColor());
         }
     }
@@ -140,47 +139,6 @@ public class Game {
         }
         board.unmakeMove(move);
         moveHistory.remove(moveHistory.size() - 1);
-    }
-
-    public boolean isCheckmate() {
-        int color = board.activeColor;
-        List<Piece> kings = board.pieces.get(PieceType.KING).get(color);
-        if (kings.size() > 0) {
-            Piece king = kings.get(0);
-            if (board.threatening.contains(king.square)) {
-                return getMoves().size() == 0;
-            } else {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public boolean isStalemate(int color) {
-        List<Piece> kings = board.pieces.get(PieceType.KING).get(color);
-        boolean onlyKings = true;
-        for (List<List<Piece>> pieces : board.pieces.values()) {
-            for (List<Piece> pieceColor : pieces) {
-                for (Piece p : pieceColor) {
-                    if (p.type != PieceType.KING) {
-                        onlyKings = false;
-                        break;
-                    }
-                }
-            }
-        }
-        if (onlyKings) {
-            return true;
-        }
-        if (kings.size() > 0) {
-            Piece king = kings.get(0);
-            if (!board.threatening.contains(king.square)) {
-                return getMoves(king.color).size() == 0;
-            } else {
-                return false;
-            }
-        }
-        return false;
     }
 
     public long getRemainingMillis(int color) {
