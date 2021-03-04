@@ -4,7 +4,7 @@ public class Move {
     Piece captured;
     int type;
     PieceType promoteTo;
-    boolean firstMove;
+    boolean firstMove, isThreat = true;
 
     public static final int CASTLE = 1;
     public static final int PROMOTION = 2;
@@ -55,6 +55,6 @@ public class Move {
     }
 
     public String toString() {
-        return "\n{start: " + start + ", end: " + end + ", actor: " + actor + ", captured: " + captured + ", type: " + type + ", promoted_to: " + promoteTo + "}";
+        return "\n{start: " + start + ", end: " + end + ", actor: " + actor.getChar() + end + ", captured: " + captured + ", type: " + type + ", promoted_to: " + promoteTo + "}";
     }
 }

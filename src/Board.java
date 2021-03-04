@@ -1,18 +1,24 @@
-import java.util.ArrayList;
-import java.util.List;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class Board {
     Square[][] board;
     Map<PieceType, List<List<Piece>>> pieces;
     ArrayList<Move> moves;
+    Set<Square> threatening;
+    boolean multiCheck;
+    boolean[] checkVectors; // directions check is coming from
+    Set<Square> checkPath;
+    List<Pin> pins;
     int activeColor;
 
     public Board() {
         board = new Square[8][8];
         pieces = new HashMap<>();
         moves = new ArrayList<>();
+        pins = new ArrayList<>();
+        threatening = new HashSet<>();
+        checkPath = new HashSet<>();
+        checkVectors = new boolean[8];
         initPieces();
 
         for (int i = 0; i < board.length; i++) {
@@ -20,7 +26,6 @@ public class Board {
                 board[i][j] = new Square(i, j);
             }
         }
-        updateInfo();
     }
 
     public Board(Board b) {
@@ -37,6 +42,20 @@ public class Board {
             }
         }
         this.activeColor = b.activeColor;
+        this.multiCheck = b.multiCheck;
+        threatening = new HashSet<>();
+        for (Square sq : b.threatening) {
+            threatening.add(board[sq.row][sq.col]);
+        }
+        checkPath = new HashSet<>();
+        for (Square sq : b.checkPath) {
+            checkPath.add(board[sq.row][sq.col]);
+        }
+        checkVectors = Arrays.copyOf(b.checkVectors, b.checkVectors.length);
+        pins = new ArrayList<>();
+        for (Pin p : b.pins) {
+            pins.add(new Pin(p, this));
+        }
         moves = new ArrayList<>();
         for (Move move : b.moves) {
             moves.add(translateMove(move));
@@ -44,30 +63,51 @@ public class Board {
     }
 
     public void updateInfo() {
+        updatePinningAndCheck();
         updateThreatening();
-        updatePinning();
-        updateMoves();
+        moves.clear();
+        moves = getMoves(activeColor);
+    }
+
+    public void updateThreatening() {
+        threatening.clear();
+        for (List<List<Piece>> allColors : pieces.values()) {
+            for (Piece p : allColors.get(Piece.getOpposite(activeColor))) {
+                ArrayList<Move> possibleMoves = MoveGenerator.generateMoves(this, p, true);
+                for (Move move : possibleMoves) {
+                    if (move.isThreat) {
+                        threatening.add(move.end);
+                        if (move.actor.type == PieceType.KNIGHT && move.end.isOccupied() && move.end.piece.type == PieceType.KING && move.end.piece.color != move.actor.color) {
+                            for (boolean b : checkVectors) {
+                                if (b) {
+                                    multiCheck = true;
+                                    break;
+                                }
+                            }
+                            checkPath.add(move.start);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public ArrayList<Move> getMoves(int color) {
         ArrayList<Move> tempMoves = new ArrayList<>();
         for (List<List<Piece>> pieceType : pieces.values()) {
             for (Piece p : pieceType.get(color)) {
-                ArrayList<Move> pieceMoves = MoveGenerator.generateMoves(this, p);
-                for (Move move : pieceMoves) {
-                    tempMoves.add(move);
-                }
+                tempMoves.addAll(MoveGenerator.generateMoves(this, p));
             }
         }
         return tempMoves;
     }
 
-    public void updateMoves() {
-        moves = getMoves(activeColor);
-    }
-
     public Move translateMove(Move move) {
-        return new Move(board[move.start.row][move.start.col], board[move.end.row][move.end.col]);
+        Move newMove = new Move(board[move.start.row][move.start.col], board[move.end.row][move.end.col]);
+        newMove.promoteTo = move.promoteTo;
+        newMove.type = move.type;
+        newMove.firstMove = move.firstMove;
+        return newMove;
     }
 
     public void initPieces() {
@@ -84,6 +124,7 @@ public class Board {
         this();
         int row = 0, col = 0;
         String[] fields = fen.split(" ");
+        activeColor = fields[1].equals("w") ? Piece.WHITE : Piece.BLACK;
         for (int i = 0; i < fields[0].length(); i++) {
             char c = fields[0].charAt(i);
             int color = Character.isLowerCase(c) ? Piece.BLACK : Piece.WHITE;
@@ -141,15 +182,10 @@ public class Board {
     }
 
     public static String coorConvert(int row, int col) {
-        return "" + (char)(col + 'a') + (1 + row);
+        return "" + (char)(col + 'a') + (8 - row);
     }
 
     public void makeMove(Move move) {
-        makeMove(move, false);
-    }
-
-    public void makeMove(Move move, boolean end) {
-        removeThreatening(move.actor);
         for (List<Piece> allColors : pieces.get(PieceType.PAWN)) {
             for (Piece p : allColors) {
                 Pawn pawn = (Pawn) p;
@@ -177,15 +213,10 @@ public class Board {
             pieces.get(move.promoteTo).get(move.actor.color).add(move.actor);
         }
         if (move.isCapture()) {
-            removeThreatening(move.captured);
             pieces.get(move.captured.type).get(move.captured.color).remove(move.captured);
         }
         activeColor = Piece.getOpposite(activeColor);
-        updateThreatening();
-        if (!end) {
-            updatePinning();
-            updateMoves();
-        }
+        updateInfo();
     }
 
     public void unmakeMove(Move move) {
@@ -222,43 +253,55 @@ public class Board {
         updateInfo();
     }
 
-    public void updateThreatening() {
-        for (List<List<Piece>> allColors : pieces.values()) {
-            for (List<Piece> color : allColors) {
-                for (Piece p : color) {
-                    removeThreatening(p);
-                    addThreatening(p);
-                }
-            }
-        }
-    }
-
-    public void updatePinning() {
-        for (List<List<Piece>> allColors : pieces.values()) {
-            for (List<Piece> color : allColors) {
-                for (Piece p : color) {
-                    p.pinnedBy = null;
-                }
-            }
-        }
-        for (List<List<Piece>> allColors : pieces.values()) {
-            for (List<Piece> color : allColors) {
-                for (Piece p : color) {
-                    Piece pinned = MoveGenerator.getPinned(this, p);
-                    if (pinned != null) {
-                        pinned.pinnedBy = p;
+    public void updatePinningAndCheck() {
+        pins.clear();
+        checkPath.clear();
+        multiCheck = false;
+        checkVectors = new boolean[8];
+        if (pieces.get(PieceType.KING).get(activeColor).size() > 0) {
+            King king = (King) pieces.get(PieceType.KING).get(activeColor).get(0);
+            for (int i = 0; i < MoveGenerator.KING_MOVES.length; i++) {
+                int[] offsets = MoveGenerator.KING_MOVES[i];
+                int xOff = offsets[0];
+                int yOff = offsets[1];
+                int row = king.square.row + yOff;
+                int col = king.square.col + xOff;
+                int offCount = 1;
+                Piece pinning = null;
+                Set<Square> path = new HashSet<>();
+                while (col >= 0 && col < 8 && row >= 0 && row < 8) {
+                    Square sq = board[row][col];
+                    path.add(sq);
+                    if (sq.isOccupied()) {
+                        if (sq.piece.color == activeColor) {
+                            if (pinning == null) {
+                                pinning = sq.piece;
+                            } else {
+                                break;
+                            }
+                        } else {
+                            boolean isPin = sq.piece.type == PieceType.QUEEN || (sq.piece.type == PieceType.ROOK && (xOff == 0 || yOff == 0) || (sq.piece.type == PieceType.BISHOP && (xOff != 0 && yOff != 0)));
+                            isPin = isPin || (offCount == 1 && sq.piece.type == PieceType.PAWN && (xOff != 0 && yOff != 0));
+                            if (pinning != null && isPin) {
+                                pins.add(new Pin(pinning, sq.piece, king, path));
+                            } else if (pinning == null) {
+                                if (isPin) {
+                                    if (checkPath.size() == 0) {
+                                        checkPath = path;
+                                    } else {
+                                        checkPath.addAll(path);
+                                        multiCheck = true;
+                                    }
+                                    checkVectors[i] = true;
+                                }
+                            }
+                            break;
+                        }
                     }
+                    row += yOff;
+                    col += xOff;
+                    offCount++;
                 }
-            }
-        }
-    }
-
-    public void removeThreatening(Piece p) {
-        if (p != null) {
-            for (int i = p.threatening.size() - 1; i >= 0; i--) {
-                Square sq = p.threatening.get(i);
-                sq.threatenedBy.remove(p);
-                p.threatening.remove(i);
             }
         }
     }
@@ -268,19 +311,7 @@ public class Board {
             return true;
         }
         King king = (King) pieces.get(PieceType.KING).get(color).get(0);
-        for (Piece piece : king.square.threatenedBy) {
-            if (piece.color != king.color) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public void addThreatening(Piece p) {
-        for (Move m : MoveGenerator.generateMoves(this, p, true)) {
-            m.end.threatenedBy.add(p);
-            p.threatening.add(m.end);
-        }
+        return threatening.contains(king.square);
     }
 
     public String toFen() {
@@ -331,7 +362,6 @@ public class Board {
         if (!hasEn) {
             fen.append("-");
         }
-        fen.append(" 0 1");
         return fen.toString();
     }
 

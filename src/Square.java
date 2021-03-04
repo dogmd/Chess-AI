@@ -4,10 +4,8 @@ import java.util.Set;
 public class Square {
     Piece piece;
     int row, col;
-    Set<Piece> threatenedBy;
 
     public Square(int row, int col) {
-        threatenedBy = new HashSet<>();
         this.row = row;
         this.col = col;
     }
@@ -15,7 +13,6 @@ public class Square {
     public Square(Square sq) {
         this.row = sq.row;
         this.col = sq.col;
-        this.threatenedBy = new HashSet<>();
         if (sq.isOccupied()) {
             Piece p;
             if (sq.piece.type == PieceType.PAWN) {

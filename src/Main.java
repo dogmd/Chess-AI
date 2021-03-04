@@ -1,4 +1,5 @@
 import java.lang.reflect.Constructor;
+import java.util.ConcurrentModificationException;
 
 public class Main {
     static GameWindow gameWindow;
@@ -9,9 +10,9 @@ public class Main {
     static Agent agent1 = null, agent2 = null;
     static boolean displayEnabled = true;
     static long delayMillis = 0;
+    static int runCount = 1;
 
-    public static void main(String[] args) throws InterruptedException {
-
+    public static void main(String[] args) {
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             if (arg.equals("-time")) {
@@ -38,13 +39,14 @@ public class Main {
             } else if (arg.equals("-name2")) {
                 agent2Name = args[i + 1];
                 i++;
+            } else if (arg.equals("-runcount")) {
+                runCount = Integer.parseInt(args[i + 1]);
+                i++;
             }
         }
         Game game = new Game(board, time);
         System.out.println(game);
-        if (displayEnabled) {
-            gameWindow = new GameWindow(game);
-        }
+        gameWindow = new GameWindow(game);
 
         if (agent1Class != null) {
             agent1 = getAgent(agent1Name, agent1Class, game);
@@ -56,11 +58,10 @@ public class Main {
         }
 
         int numGames = 0;
-        while ((agent1 != null || agent2 != null) && numGames < 500) {
+        while ((agent1 != null || agent2 != null) && numGames < runCount) {
             if (!makeAgentMove(agent1, game)) break;
-            Thread.sleep(delayMillis);
             if (!makeAgentMove(agent2, game)) break;
-            if (game.gameState != GameState.ACTIVE) {
+            if (game.gameState != GameState.ACTIVE && game.gameState != GameState.PAUSED) {
                 System.out.println(game.gameState);
                 game = new Game(board, time);
                 if (agent1 != null) {
@@ -69,29 +70,45 @@ public class Main {
                 if (agent2 != null) {
                     agent2.game = game;
                 }
-                gameWindow.game = game;
-                gameWindow.gameView.game = game;
                 numGames++;
+                if (numGames < runCount) {
+                    gameWindow.game = game;
+                    gameWindow.gameView.game = game;
+                }
             }
-            Thread.sleep(delayMillis);
         }
     }
 
     public static boolean makeAgentMove(Agent agent, Game game) {
-        if (agent != null && game.getActiveColor() == agent.color) {
-            Move move = agent.getMove(game, agent.color);
-            System.out.println(agent.name + " plays " + move.toString().replace("\n", ""));
-            if (move == null) {
-                return false;
+        try {
+            if (delayMillis > 0) {
+                try {
+                    Thread.sleep(delayMillis);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
-            if (move.isCapture() && move.captured.type == PieceType.KING) {
-                System.out.println("OH NO");
-                game.unmakeMove(game.moveHistory.get(game.moveHistory.size() - 1));
-                return false;
+            if (game.gameState == GameState.PAUSED) {
+                return true;
             }
-            game.makeMove(move);
-            System.out.println(game.board);
-            System.out.println(game.getMaterialScore() + "\n");
+            if (game.gameState == GameState.ACTIVE && agent != null && game.getActiveColor() == agent.color) {
+                Move move = agent.getMove(game, agent.color);
+                System.out.println(agent.name + " plays " + move.toString().replace("\n", ""));
+                if (move.isCapture() && move.captured.type == PieceType.KING) {
+                    System.out.println("OH NO");
+                    game.unmakeMove(game.moveHistory.get(game.moveHistory.size() - 1));
+                    return false;
+                }
+                game.makeMove(move);
+                gameWindow.gameView.highlightedSquares.clear();
+                gameWindow.gameView.highlightedSquares.add(move.start);
+                gameWindow.gameView.highlightedSquares.add(move.end);
+                System.out.println(game.toFen());
+                System.out.println(game.getMaterialScore() + "\n");
+            }
+        } catch (ConcurrentModificationException e) {
+            System.out.println("Concurrent modification error.");
+            return true;
         }
         return true;
     }

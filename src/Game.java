@@ -13,7 +13,6 @@ public class Game {
         try {
             board = new Board(fen);
             String[] fields = fen.split(" ");
-            board.activeColor = fields[1].equals("w") ? Piece.WHITE : Piece.BLACK;
             halfMoves = Integer.parseInt(fields[4]);
             fullMoves = Integer.parseInt(fields[5]);
         } catch (Exception e) {
@@ -33,10 +32,13 @@ public class Game {
         blackAdd = Integer.parseInt(time[1]) * 1000;
         turnStart = System.currentTimeMillis();
         gameState = GameState.ACTIVE;
+        board.updateInfo();
+        checkSetEndState();
     }
 
     public Game(Game game) {
         this.board = new Board(game.board);
+        board.updateInfo();
         this.blackMillis = game.blackMillis;
         this.whiteMillis = game.whiteMillis;
         this.blackAdd = game.blackAdd;
@@ -70,34 +72,34 @@ public class Game {
             Main.gameWindow.gameView.selectedSquare = null;
         }
         if (move != null) {
-            if (move.actor == null) {
-                System.out.println(move);
-            }
             if (move.actor.type == PieceType.PAWN || move.isCapture()) {
                 halfMoves = 0;
             } else {
                 halfMoves++;
-                if (halfMoves >= 50) {
+                if (halfMoves >= 100) {
                     //System.out.println("Fifty-move draw rule available.");
                     gameState = GameState.DRAW;
                 }
             }
-            board.makeMove(move);
-            moveHistory.add(move);
             if (getActiveColor() == Piece.BLACK) {
                 fullMoves++;
                 blackMillis += blackAdd - (System.currentTimeMillis() - turnStart);
             } else {
                 whiteMillis += whiteAdd - (System.currentTimeMillis() - turnStart);
             }
+            board.makeMove(move);
+            moveHistory.add(move);
+            checkSetEndState();
             turnStart = System.currentTimeMillis();
-            if (isStalemate(getActiveColor())) {
-                gameState = GameState.DRAW;
-            } else if (isCheckmate()) {
-                setWinner(getActiveColor());
-            }
         }
-        //System.out.println(getMaterialScore());
+    }
+
+    public void checkSetEndState() {
+        if (isStalemate(getActiveColor())) {
+            gameState = GameState.DRAW;
+        } else if (isCheckmate()) {
+            setWinner(getActiveColor());
+        }
     }
 
     public ArrayList<Move> getMoves() {
@@ -133,6 +135,9 @@ public class Game {
 
     // Not a perfect reset
     public void unmakeMove(Move move) {
+        if (move.actor.color == Piece.BLACK) {
+            fullMoves--;
+        }
         board.unmakeMove(move);
         moveHistory.remove(moveHistory.size() - 1);
     }
@@ -142,14 +147,7 @@ public class Game {
         List<Piece> kings = board.pieces.get(PieceType.KING).get(color);
         if (kings.size() > 0) {
             Piece king = kings.get(0);
-            boolean isThreatened = false;
-            for (Piece p : king.square.threatenedBy) {
-                if (p.color != king.color) {
-                    isThreatened = true;
-                    break;
-                }
-            }
-            if (isThreatened) {
+            if (board.threatening.contains(king.square)) {
                 return getMoves().size() == 0;
             } else {
                 return false;
@@ -176,14 +174,7 @@ public class Game {
         }
         if (kings.size() > 0) {
             Piece king = kings.get(0);
-            boolean isThreatened = false;
-            for (Piece p : king.square.threatenedBy) {
-                if (p.color != king.color) {
-                    isThreatened = true;
-                    break;
-                }
-            }
-            if (!isThreatened) {
+            if (!board.threatening.contains(king.square)) {
                 return getMoves(king.color).size() == 0;
             } else {
                 return false;
@@ -193,7 +184,7 @@ public class Game {
     }
 
     public long getRemainingMillis(int color) {
-        long time = 0;
+        long time;
         if (color == Piece.BLACK) {
             time = blackMillis;
             if (gameState == GameState.ACTIVE && getActiveColor() == Piece.BLACK) {
@@ -220,6 +211,10 @@ public class Game {
             negative = "-";
         }
         return String.format("%s%02d:%02d.%02d", negative, Math.abs(min), Math.abs(sec), Math.abs(millis / 10));
+    }
+
+    public String toFen() {
+        return board.toFen() + " " +  halfMoves + " " + fullMoves;
     }
 
     public String toString() {

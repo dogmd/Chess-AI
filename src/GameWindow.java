@@ -37,6 +37,10 @@ public class GameWindow extends JFrame implements KeyListener {
     public void keyPressed(KeyEvent e) {
         if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_Z && game.moveHistory.size() > 0) {
             Move undone = game.moveHistory.get(game.moveHistory.size() - 1);
+            gameView.options.clear();
+            gameView.selectedSquare = null;
+            gameView.highlightedSquares.clear();
+            gameView.alertedSquares.clear();
             game.unmakeMove(undone);
             gameView.selectedSquare = undone.start;
         } else if (e.getKeyCode() == KeyEvent.VK_T) {
@@ -159,12 +163,14 @@ class GameView extends JPanel implements ActionListener {
     }
 
     public void makeMove(Move move) {
+        System.out.println("HUMAN plays " + move.toString().replace("\n", ""));
         game.makeMove(move);
         selectedSquare = null;
         options.clear();
         highlightedSquares.clear();
         highlightedSquares.add(move.start);
         highlightedSquares.add(move.end);
+        System.out.println(game.toFen());
     }
 
     public PieceType getSelectedPromotion(Square sq, int x, int y) {
@@ -268,18 +274,25 @@ class GameView extends JPanel implements ActionListener {
             }
         }
         drawOptions(g);
-        drawPieces(g);
         if (showThreatened) {
-            for (int i = 0; i < board.length; i++) {
-                for (int j = 0; j < board[i].length; j++) {
-                    g.setColor(Color.WHITE);
-                    g.setFont(robotoBold.deriveFont(10f));
-                    if (board[i][j].threatenedBy.size() > 0) {
-                        g.drawString("" + board[i][j].threatenedBy, margins + (j * squareWidth), margins + smallOff / 2 + (i * squareWidth));
-                    }
+            for (Square sq : game.board.threatening) {
+                g.setColor(BLUE);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setStroke(new BasicStroke(4));
+                g2d.fillRect(margins + sq.col * squareWidth, margins + sq.row * squareWidth, squareWidth, squareWidth);
+            }
+            for (Square sq : game.board.checkPath) {
+                g.setColor(YELLOW);
+                g.fillRect(margins + sq.col * squareWidth, margins + sq.row * squareWidth, squareWidth, squareWidth);
+            }
+            for (Pin pin : game.board.pins) {
+                g.setColor(new Color((float)Math.random(), (float)Math.random(), (float)Math.random()));
+                for (Square sq : pin.path) {
+                    g.fillRect(margins + sq.col * squareWidth, margins + sq.row * squareWidth, squareWidth, squareWidth);
                 }
             }
         }
+        drawPieces(g);
 
         for (int i = 0; i < board.length; i++) {
             g.setColor(Color.WHITE);
@@ -287,7 +300,7 @@ class GameView extends JPanel implements ActionListener {
             String text = "" + (char)('A' + i);
             int textWidth = g.getFontMetrics().stringWidth(text);
             g.drawString(text, i * squareWidth + margins - textWidth / 2 + squareWidth / 2, margins - smallOff / 2);
-            text = "" + (i + 1);
+            text = "" + (8 - i);
             int textHeight = g.getFont().getSize();
             textWidth = g.getFontMetrics().stringWidth(text);
             g.drawString(text, margins - smallOff / 2 - textWidth, i * squareWidth + margins + textHeight / 4 + squareWidth / 2);
@@ -362,8 +375,8 @@ class GameView extends JPanel implements ActionListener {
         String fileName = "icons/" + Character.toLowerCase(selectedSquare.piece.getChar()) + (selectedSquare.piece.isWhite() ? "w" : "b") + ".svg";
         int x = mouseX;
         int y = mouseY;
-        int max = margins + boardWidth;
-        int min = margins;
+        int max = margins + boardWidth + squareWidth / 2;
+        int min = margins - squareWidth / 2;
         int offset = squareWidth / 2;
         if (x + offset > max) {
             x = max - offset;
