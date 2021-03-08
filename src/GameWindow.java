@@ -2,11 +2,13 @@ import org.apache.batik.transcoder.TranscoderException;
 import org.apache.batik.transcoder.TranscoderInput;
 import org.apache.batik.transcoder.image.PNGTranscoder;
 
+import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,6 +54,31 @@ public class GameWindow extends JFrame implements KeyListener {
 
     @Override
     public void keyReleased(KeyEvent e) {}
+
+    public void playNotify() {
+        playSound("sounds/GenericNotify.wav");
+    }
+
+    public void playSound(String path) {
+        AudioInputStream audioInputStream = null;
+        Clip clip = null;
+        try {
+            audioInputStream = AudioSystem.getAudioInputStream(new File(path));
+            clip = AudioSystem.getClip();
+            clip.open(audioInputStream);
+            clip.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void playSound(Move move) {
+        if (move.isCapture()) {
+            playSound("sounds/Capture.wav");
+        } else {
+            playSound("sounds/Move.wav");
+        }
+    }
 }
 
 class GameView extends JPanel implements ActionListener {
@@ -163,14 +190,9 @@ class GameView extends JPanel implements ActionListener {
     }
 
     public void makeMove(Move move) {
-        System.out.println("HUMAN plays " + move.toString().replace("\n", ""));
-        game.makeMove(move);
         selectedSquare = null;
         options.clear();
-        highlightedSquares.clear();
-        highlightedSquares.add(move.start);
-        highlightedSquares.add(move.end);
-        System.out.println(game.toFen());
+        Main.makeMove("HUMAN", game, move);
     }
 
     public PieceType getSelectedPromotion(Square sq, int x, int y) {

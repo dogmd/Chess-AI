@@ -36,11 +36,17 @@ public class Board {
             for (int j = 0; j < b.board[i].length; j++) {
                 Square sq = new Square(b.board[i][j]);
                 this.board[i][j] = sq;
-                if (sq.isOccupied()) {
-                    pieces.get(sq.piece.type).get(sq.piece.color).add(sq.piece);
+            }
+        }
+
+        for (List<List<Piece>> allPieces : b.pieces.values()) {
+            for (List<Piece> allColors : allPieces) {
+                for (Piece p : allColors) {
+                    pieces.get(p.type).get(p.color).add(board[p.square.row][p.square.col].piece);
                 }
             }
         }
+
         this.activeColor = b.activeColor;
         this.multiCheck = b.multiCheck;
         threatening = new HashSet<>();
@@ -65,7 +71,6 @@ public class Board {
     public void updateInfo() {
         updatePinningAndCheck();
         updateThreatening();
-        moves.clear();
         moves = getMoves(activeColor);
     }
 
@@ -107,6 +112,11 @@ public class Board {
         newMove.promoteTo = move.promoteTo;
         newMove.type = move.type;
         newMove.firstMove = move.firstMove;
+        if (move.type == Move.CASTLE) {
+            newMove.captured = board[move.captured.square.row][move.captured.square.col].piece;
+        } else if (move.type == Move.EN_PASSANT) {
+            newMove.captured = board[move.start.row][move.end.col].piece;
+        }
         return newMove;
     }
 
@@ -205,27 +215,21 @@ public class Board {
         if (move.type == Move.CASTLE) {
             move.captured.hasMoved = true;
             int offset = move.start.col - move.end.col > 0 ? 1 : -1;
+            board[move.captured.square.row][move.captured.square.col].setPiece(null);
             board[move.start.row][move.end.col + offset].setPiece(move.captured);
         } else if (move.type == Move.PROMOTION) {
             List<Piece> pawns = pieces.get(move.actor.type).get(move.actor.color);
             pawns.remove(move.actor);
             move.actor.type = move.promoteTo;
             pieces.get(move.promoteTo).get(move.actor.color).add(move.actor);
+        } else if (move.type == Move.EN_PASSANT) {
+            board[move.start.row][move.end.col].setPiece(null);
         }
         if (move.isCapture()) {
             pieces.get(move.captured.type).get(move.captured.color).remove(move.captured);
         }
         activeColor = Piece.getOpposite(activeColor);
         updateInfo();
-    }
-
-    public boolean isPinned(Piece p) {
-        for (Pin pin : pins) {
-            if (pin.piece == p) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public void unmakeMove(Move move) {
@@ -245,7 +249,7 @@ public class Board {
             move.end.setPiece(null);
         } else if (move.type == Move.PROMOTION) {
             move.end.setPiece(move.captured);
-            pieces.get(move.actor.type).get(move.actor.color).remove(move.actor);
+            pieces.get(move.promoteTo).get(move.actor.color).remove(move.actor);
             move.actor.type = PieceType.PAWN;
             addPiece(move.start.row, move.start.col, move.actor);
         } else {
@@ -260,6 +264,15 @@ public class Board {
         move.start.setPiece(move.actor);
         activeColor = move.actor.color;
         updateInfo();
+    }
+
+    public boolean isPinned(Piece p) {
+        for (Pin pin : pins) {
+            if (pin.piece == p) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void updatePinningAndCheck() {

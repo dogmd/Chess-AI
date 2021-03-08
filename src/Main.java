@@ -92,25 +92,31 @@ public class Main {
                 return true;
             }
             if (game.gameState == GameState.ACTIVE && agent != null && game.getActiveColor() == agent.color) {
-                Move move = agent.getMove(game, agent.color);
-                System.out.println(agent.name + " plays " + move.toString().replace("\n", ""));
-                if (move.isCapture() && move.captured.type == PieceType.KING) {
-                    System.out.println("OH NO");
-                    game.unmakeMove(game.moveHistory.get(game.moveHistory.size() - 1));
-                    return false;
-                }
-                game.makeMove(move);
-                gameWindow.gameView.highlightedSquares.clear();
-                gameWindow.gameView.highlightedSquares.add(move.start);
-                gameWindow.gameView.highlightedSquares.add(move.end);
-                System.out.println(game.toFen());
-                System.out.println(game.getMaterialScore() + "\n");
+                makeMove(agent.name, game, agent.getMove(game, agent.color));
             }
         } catch (ConcurrentModificationException e) {
             System.out.println("Concurrent modification error.");
             return true;
         }
         return true;
+    }
+
+    public static void makeMove(String source, Game game, Move move) {
+        System.out.println(source + " plays " + move.toString().replace("\n", ""));
+        GameState oldState = game.gameState;
+        game.makeMove(move);
+        System.out.println(game.toFen());
+        System.out.println(game.getMaterialScore() + "\n");
+        if (Main.displayEnabled) {
+            if (oldState != game.gameState) {
+                Main.gameWindow.playNotify();
+            } else {
+                gameWindow.playSound(move);
+                gameWindow.gameView.highlightedSquares.clear();
+                gameWindow.gameView.highlightedSquares.add(move.start);
+                gameWindow.gameView.highlightedSquares.add(move.end);
+            }
+        }
     }
 
     public static Agent getAgent(String agentName, String agentClassname, Game game) {

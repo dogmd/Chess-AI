@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.List;
 
 public class Game {
     Board board;
@@ -51,15 +52,33 @@ public class Game {
 
     public int getMaterialScore() {
         int total = 0;
-        for (PieceType type : PieceType.values()) {
-            int whiteNum = board.pieces.get(type).get(Piece.WHITE).size();
-            int blackNum = board.pieces.get(type).get(Piece.BLACK).size();
-            int weight = Piece.getWeight(type);
-            if (whiteNum + blackNum > 0) {
-                total += weight * (whiteNum - blackNum);
+        boolean isEndgame = isEndgame();
+        for (List<List<Piece>> allPieces : board.pieces.values()) {
+            int whiteTotal = 0, blackTotal = 0;
+            for (List<Piece> allColors : allPieces) {
+                for (Piece p : allColors) {
+                    if (p.color == Piece.WHITE) {
+                        whiteTotal += p.getWeight(isEndgame);
+                    } else {
+                        blackTotal += p.getWeight(isEndgame);
+                    }
+                }
             }
+            total += whiteTotal - blackTotal;
         }
         return total;
+    }
+
+    public boolean isEndgame() {
+        int totalPieces = 0;
+        for (List<List<Piece>> allPieces : board.pieces.values()) {
+            for (List<Piece> allColors : allPieces) {
+                for (Piece p : allColors) {
+                    totalPieces++;
+                }
+            }
+        }
+        return totalPieces <= 7;
     }
 
     public int getMobilityDiff() {
@@ -103,14 +122,6 @@ public class Game {
 
     public ArrayList<Move> getMoves() {
         return board.moves;
-    }
-
-    public ArrayList<Move> getMoves(int color) {
-        if (board.activeColor == color) {
-            return board.moves;
-        } else {
-            return board.getMoves(color);
-        }
     }
 
     public void setWinner(int color) {

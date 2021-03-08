@@ -1,3 +1,4 @@
+import java.lang.reflect.Executable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -5,28 +6,37 @@ import java.util.List;
 public class ScottAgent extends Agent {
     long evalCount;
     int depth;
+    Game copy;
+    Move bestMove;
+    double bestScore;
+    int lastDepth;
+    boolean searchCaptures;
 
     public ScottAgent(String name, Game game, int color) {
         super(name, game, color);
         evalCount = 0;
         try {
-            this.depth = Integer.parseInt(name);
+            String[] fields = name.split(",");
+            this.depth = Integer.parseInt(fields[0]);
+            this.searchCaptures = Boolean.parseBoolean(fields[1]);
         } catch (NumberFormatException e) {
             this.depth = 4;
+            this.searchCaptures = true;
         }
     }
 
     public double getMoveScore(Game g, Move move) {
         double total = 0;
+        boolean isEndgame = g.isEndgame();
         if (move.isCapture()) {
-            total += 10 * (Piece.getWeight(move.captured.type) - Piece.getWeight(move.actor.type));
+            total += 10 * (move.captured.getWeight(isEndgame) - move.actor.getWeight(isEndgame));
         }
         if (move.type == Move.PROMOTION) {
             total += 2 * Piece.getWeight(move.promoteTo);
         }
         for (Piece p : g.board.pieces.get(PieceType.PAWN).get(Piece.getOpposite(move.actor.color))) {
             if (p.threatening.contains(move.end)) {
-                total -= Piece.getWeight(move.actor.type);
+                total -= move.actor.getWeight(isEndgame);
             }
         }
         return total;
@@ -40,6 +50,7 @@ public class ScottAgent extends Agent {
                 endgameWeight--;
             }
         }
+        endgameWeight /= 2;
 
         Piece p = g.board.pieces.get(PieceType.KING).get(Piece.getOpposite(color)).get(0);
         int enemyCol = p.square.col;
@@ -57,148 +68,95 @@ public class ScottAgent extends Agent {
 
     public double getScore(Game g) {
         double total = 0;
-        total += 100 * g.getMaterialScore() * (color == Piece.WHITE ? 1 : -1);
-        total += g.getMobilityDiff();
-        if (g.board.isChecked()) {
-            total += 200 * (g.getActiveColor() == color ? -1 : 1);
+        total += g.getMaterialScore() * (g.getActiveColor() == Piece.WHITE ? 1 : -1);
+        total += g.getMobilityDiff() * (g.getActiveColor() == color ? 1 : -1);
+        if (g.isEndgame()) {
+            total += kingTrapWeight(g);
         }
-        total += kingTrapWeight(g);
         return total;
     }
 
-    public MovePath search(Game g, int depth, double alpha, double beta, MovePath path) {
-        ArrayList<Move> moves = new ArrayList<>(g.board.moves);
+    public double searchCaptures(double alpha, double beta) {
+        double score = getScore(copy);
+        if (score >= beta) {
+            return beta;
+        }
+        alpha = Math.max(alpha, score);
+
+        ArrayList<Move> moves = new ArrayList<>(copy.board.moves);
+        for (int i = moves.size() - 1; i >= 0; i--) {
+            Move move = moves.get(i);
+            if (move.isCapture()) {
+                move.score = getMoveScore(copy, move);
+            } else {
+                moves.remove(i);
+            }
+        }
+        Collections.sort(moves);
+
         for (Move move : moves) {
-            move.score = getMoveScore(g, move);
-        }
-        if (moves.size() == 0) {
-            if (g.board.isChecked()) {
-                path.score = (g.getActiveColor() == color ? -1 : 1) * 9999999;
-                return path;
+            copy.makeMove(move);
+            score = -searchCaptures(-beta, -alpha);
+            copy.unmakeMove(move);
+
+            if (score >= beta) {
+                return beta;
             }
-            path.score = 0;
-            return path;
+            alpha = Math.max(alpha, score);
         }
+
+        return alpha;
+    }
+
+    public double search(int depth, double alpha, double beta) {
         if (depth == 0) {
-            path.score = getScore(g);
-            return path;
-        } else {
-            boolean maximizingPlayer = g.getActiveColor() == color;
-            if (maximizingPlayer) {
-                Collections.sort(moves, Collections.reverseOrder());
+            if (searchCaptures) {
+                return searchCaptures(alpha, beta);
             } else {
-                Collections.sort(moves);
-            }
-
-            if (maximizingPlayer) {
-                MovePath bestPath = new MovePath(null, null, -999999);
-                for (Move move : moves) {
-                    evalCount++;
-                    g.makeMove(move);
-                    MovePath next = new MovePath(path, move, 0);
-                    MovePath endPath = search(g, depth - 1, alpha, beta, next);
-                    if (bestPath.move == null || endPath.score >= bestPath.score) {
-                        if (endPath.score != bestPath.score || endPath.getLength() < bestPath.getLength()) {
-                            bestPath = endPath;
-                        }
-                    }
-                    alpha = Math.max(alpha, bestPath.score);
-                    g.unmakeMove(move);
-                    if (alpha > beta) {
-                        break;
-                    }
-                }
-                return bestPath;
-            } else {
-                MovePath worstPath = new MovePath(null, null, 999999);
-                for (Move move : moves) {
-                    evalCount++;
-                    g.makeMove(move);
-                    MovePath next = new MovePath(path, move, 0);
-                    MovePath endPath = search(g, depth - 1, alpha, beta, next);
-                    if (worstPath.move == null || endPath.score <= worstPath.score) {
-                        if (endPath.score != worstPath.score || endPath.getLength() < worstPath.getLength()) {
-                            worstPath = endPath;
-                        }
-                    }
-                    beta = Math.min(beta, worstPath.score);
-                    g.unmakeMove(move);
-                    if (beta < alpha) {
-                        break;
-                    }
-                }
-                return worstPath;
+                return getScore(copy);
             }
         }
+
+        ArrayList<Move> moves = new ArrayList<>(copy.board.moves);
+        if (moves.size() == 0) {
+            if (copy.board.isChecked()) {
+                return -999999 + copy.fullMoves;
+            }
+            return 0;
+        }
+
+        for (Move move : moves) {
+            move.score = getMoveScore(copy, move);
+        }
+        Collections.sort(moves);
+
+        for (Move move : moves) {
+            copy.makeMove(move);
+            double score = -search(depth - 1, -beta, -alpha);
+            copy.unmakeMove(move);
+            if ((score > bestScore || bestMove == null) && depth == this.depth) {
+                bestScore = score;
+                bestMove = move;
+            }
+            if (score >= beta) {
+                return beta;
+            }
+            alpha = Math.max(alpha, score);
+        }
+
+        return alpha;
     }
 
-    @Override
     public Move getMove(Game game, int color) {
-        evalCount = 0;
+        this.copy = new Game(game);
         this.game = game;
-        Game copy = new Game(game);
+        this.bestScore = -999999;
+        this.bestMove = null;
+        this.lastDepth = this.depth;
         copy.board.updateInfo();
-        long time = System.currentTimeMillis();
-        MovePath bestPath = search(copy, depth, -9999999, 9999999, new MovePath(null, null, getScore(copy)));
-        time = System.currentTimeMillis() - time;
-        MovePath[] moves = new MovePath[depth];
-        System.out.printf("%nBest path found after evaluating %d moves in %dms: %n", evalCount, time);
-        int i = 0;
-        while (bestPath.parent != null && bestPath.parent.parent != null) {
-            moves[i] = bestPath;
-            i++;
-            bestPath = bestPath.parent;
-        }
-        moves[i] = bestPath;
-        for (i = depth - 1; i >= 0; i--) {
-            if (moves[i] != null && moves[i].move != null) {
-                System.out.println("\t" + moves[i].move.toString().replaceAll("\n", "") + " " + moves[i].score);
-            }
-        }
-        System.out.println(bestPath.parent + " " + bestPath.move + " " + bestPath.score);
-        return game.board.translateMove(bestPath.move);
-    }
-
-    private static class MovePath {
-        MovePath parent;
-        double score;
-        Move move;
-
-        public MovePath() {}
-
-        public MovePath(Move move, double score) {
-            this(null, move, score);
-        }
-
-        public MovePath(MovePath parent, Move move, double score) {
-            this.parent = parent;
-            this.move = move;
-            this.score = score;
-        }
-
-        public int getLength() {
-            int total = 0;
-            MovePath curr = this;
-            if (move != null) {
-                while (curr.parent != null) {
-                    total++;
-                    curr = curr.parent;
-                }
-            }
-            return total;
-        }
-
-        public String toString() {
-            MovePath curr = this;
-            String out = "";
-            if (move != null) {
-                out = move.toString();
-                while (curr.parent != null) {
-                    out += ", " + curr.move.toString();
-                    curr = curr.parent;
-                }
-            }
-            return out;
-        }
+        long start = System.currentTimeMillis();
+        search(depth, -999999, 999999);
+        System.out.println(System.currentTimeMillis() - start + "ms");
+        return game.board.translateMove(bestMove);
     }
 }

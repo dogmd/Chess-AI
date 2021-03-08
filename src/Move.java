@@ -56,10 +56,10 @@ public class Move implements Comparable<Move> {
     }
 
     public String toString() {
-        return "\n{start: " + start + ", end: " + end + ", actor: " + actor.getChar() + end + ", captured: " + captured + ", type: " + type + ", promoted_to: " + promoteTo + ", score: " + score + "}";
+        return "\n{start: " + start + ", end: " + end + ", actor: " + (actor == null ? "" : actor.getChar()) + end + ", captured: " + captured + ", type: " + type + ", promoted_to: " + promoteTo + ", score: " + score + "}";
     }
 
     public int compareTo(Move move) {
-        return (int)(this.score - move.score);
+        return (int)(move.score - this.score);
     }
 }

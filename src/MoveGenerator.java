@@ -47,7 +47,7 @@ public class MoveGenerator {
                 break;
         }
         moves.removeIf(Objects::isNull);
-        if (p.type == PieceType.KING || board.isPinned(p) || board.isChecked()) {
+        if ((p.type == PieceType.KING && board.activeColor == p.color) || board.isPinned(p) || (board.isChecked() && p.color == board.activeColor)) {
             moves.removeIf(move -> (resultsInCheck(board, move)));
         }
         return moves;
@@ -58,19 +58,6 @@ public class MoveGenerator {
     }
 
     public static boolean resultsInCheck(Board board, Move move) {
-        if (move.type == Move.EN_PASSANT) {
-            // Cover edge case where en passant exposes unpinned check
-            int offset = move.end.col - move.start.col;
-            int col = move.start.col + offset * 2;
-            while (col >= 0 && col < 8) {
-                Square sq = board.board[move.start.row][col];
-                if (sq.isOccupied()) {
-                    return sq.piece.color != move.actor.color && (sq.piece.type == PieceType.ROOK || sq.piece.type == PieceType.QUEEN);
-                }
-                col += offset;
-            }
-            return false;
-        }
         for (Pin pin : board.pins) {
             if (pin.piece == move.actor && !pin.path.contains(move.end)) {
                 return true;
@@ -219,20 +206,21 @@ public class MoveGenerator {
                 moves.add(generateEnPassant(board, p, 1));
             }
         }
-        if ((p.square.row == 1 && p.color == Piece.WHITE) || (p.square.row == 6 && p.color == Piece.BLACK))
-        for (int i = moves.size() - 1; i >= 0; i--) {
-            Move move = moves.get(i);
-            if (move != null && move.actor != null) {
-                int color = move.actor.color;
-                int row = move.end.row;
-                if ((color == Piece.WHITE && row == 0) || (color == Piece.BLACK && row == 7)) {
-                    for (PieceType type : PROMOTE_OPTIONS) {
-                        Move newMove = new Move(move.actor, move.captured, move.start, move.end);
-                        newMove.type = Move.PROMOTION;
-                        newMove.promoteTo = type;
-                        moves.add(newMove);
+        if ((p.square.row == 1 && p.color == Piece.WHITE) || (p.square.row == 6 && p.color == Piece.BLACK)) {
+            for (int i = moves.size() - 1; i >= 0; i--) {
+                Move move = moves.get(i);
+                if (move != null && move.actor != null) {
+                    int color = move.actor.color;
+                    int row = move.end.row;
+                    if ((color == Piece.WHITE && row == 0) || (color == Piece.BLACK && row == 7)) {
+                        for (PieceType type : PROMOTE_OPTIONS) {
+                            Move newMove = new Move(move.actor, move.captured, move.start, move.end);
+                            newMove.type = Move.PROMOTION;
+                            newMove.promoteTo = type;
+                            moves.add(newMove);
+                        }
+                        moves.remove(i);
                     }
-                    moves.remove(i);
                 }
             }
         }
@@ -256,8 +244,6 @@ public class MoveGenerator {
                             if (sq.isOccupied()) {
                                 if ((sq.piece.color != p.color) && sq.piece.type == PieceType.ROOK || sq.piece.type == PieceType.QUEEN) {
                                     return null;
-                                } else {
-                                    break;
                                 }
                             }
                         }
