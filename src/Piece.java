@@ -10,6 +10,8 @@ public class Piece {
     static final int WHITE = 0;
     static final int BLACK = 1;
 
+    static final int PAWN = 0, KNIGHT = 1, BISHOP = 2, ROOK = 3, QUEEN = 4, KING = 5;
+
     public Piece() {
         this.type = PieceType.PAWN;
         this.color = WHITE;
@@ -55,6 +57,9 @@ public class Piece {
     }
 
     public static int getOpposite(int color) {
+        if (color == -1) {
+            return -1;
+        }
         return color == WHITE ? BLACK : WHITE;
     }
 
@@ -74,12 +79,62 @@ public class Piece {
         return piece;
     }
 
+    public static int getType(int piece) {
+        if (piece != FastBoard.EMPTY) {
+            return piece & 0b111;
+        }
+        return FastBoard.EMPTY;
+    }
+
+    public static int getColor(int piece) {
+        if (piece != FastBoard.EMPTY) {
+            return piece >> 3;
+        }
+        return FastBoard.EMPTY;
+    }
+
+    public static String getChar(int piece) {
+        int type = getType(piece);
+        int color = getColor(piece);
+        String val;
+        switch (type) {
+            case KNIGHT: val = "N"; break;
+            case BISHOP: val = "B"; break;
+            case ROOK: val = "R"; break;
+            case QUEEN: val = "Q"; break;
+            case KING: val = "K"; break;
+            default: val = "";
+        }
+        if (color == BLACK) {
+            return val.toLowerCase();
+        }
+        return val;
+    }
+
+    public static String getFenChar(int piece) {
+        int type = getType(piece);
+        String val;
+        if (type == Piece.PAWN) {
+            val = "P";
+            int color = getColor(piece);
+            if (color == Piece.BLACK) {
+                val = val.toLowerCase();
+            }
+            return val;
+        }
+        return getChar(piece);
+    }
+
     public String toString() {
         String piece = "" + getChar();
         if (square != null) {
             piece += square.toString();
         }
         return piece;
+    }
+
+    public int toInt() {
+        return (color << 3) | type.ordinal();
     }
 
     // tables from https://www.chessprogramming.org/Simplified_Evaluation_Function#Piece-Square_Tables
@@ -165,10 +220,16 @@ public class Piece {
     }
 
     public int getWeight(boolean isEndgame) {
-        int weight = getWeight(this.type);
-        int row = color == BLACK ? 7 - square.row : square.row;
-        int index = row * 8 + square.col;
-        switch (this.type) {
+        return getWeight(toInt(), square.row, square.col, isEndgame);
+    }
+
+    public static int getWeight(int piece, int row, int col, boolean isEndgame) {
+        int type = Piece.getType(piece);
+        int color = Piece.getColor(piece);
+        int weight = getWeight(type);
+        row = color == BLACK ? 7 - row : row;
+        int index = row * 8 + col;
+        switch (type) {
             case PAWN: return weight + PAWN_W[index];
             case BISHOP: return weight + BISHOP_W[index];
             case KNIGHT: return weight + KNIGHT_W[index];
@@ -180,6 +241,21 @@ public class Piece {
     }
 
     public static int getWeight(PieceType type) {
+        return getWeight(type.ordinal());
+    }
+
+    public static PieceType getPieceType(int type) {
+        switch(type) {
+            case PAWN: return PieceType.PAWN;
+            case KNIGHT: return PieceType.KNIGHT;
+            case BISHOP: return PieceType.BISHOP;
+            case ROOK: return PieceType.ROOK;
+            case QUEEN: return PieceType.QUEEN;
+            default: return PieceType.KING;
+        }
+    }
+
+    public static int getWeight(int type) {
         switch (type) {
             case PAWN: return 100;
             case BISHOP: return 330;

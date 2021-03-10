@@ -1,13 +1,11 @@
-import java.lang.reflect.Executable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 public class ScottAgent extends Agent {
     long evalCount;
     int depth;
     Game copy;
-    Move bestMove;
+    FastMove bestMove;
     double bestScore;
     int lastDepth;
     boolean searchCaptures;
@@ -25,55 +23,65 @@ public class ScottAgent extends Agent {
         }
     }
 
-    public double getMoveScore(Game g, Move move) {
+    public double getMoveScore(Game g, FastMove move) {
         double total = 0;
         boolean isEndgame = g.isEndgame();
+        int startRow = move.start / 8;
+        int startCol = move.start - startRow * 8;
+        int endRow = move.end / 8;
+        int endCol = move.end - endRow * 8;
         if (move.isCapture()) {
-            total += 10 * (move.captured.getWeight(isEndgame) - move.actor.getWeight(isEndgame));
+            // not going to bother account for en passant here
+            int actorWeight = Piece.getWeight(move.actor, startRow, startCol, isEndgame);
+            int capturedWeight = Piece.getWeight(move.captured, endRow, endCol, isEndgame);
+            total += 10 * capturedWeight - actorWeight;
         }
         if (move.type == Move.PROMOTION) {
-            total += 2 * Piece.getWeight(move.promoteTo);
+            total += 2 * Piece.getWeight(move.promoteTo, endRow, endCol, isEndgame);
         }
-        for (Piece p : g.board.pieces.get(PieceType.PAWN).get(Piece.getOpposite(move.actor.color))) {
-            if (p.threatening.contains(move.end)) {
-                total -= move.actor.getWeight(isEndgame);
-            }
+        if (g.board.pawnThreats[move.end]) {
+            int endActorWeight = 350;//Piece.getWeight(move.actor, endRow, endCol, isEndgame);
+            total -= endActorWeight;
         }
         return total;
     }
 
     public double kingTrapWeight(Game g) {
         double total = 0;
-        int endgameWeight = 16;
-        for (List<List<Piece>> allPieces : g.board.pieces.values()) {
-            for (Piece p : allPieces.get(Piece.getOpposite(color))) {
-                endgameWeight--;
-            }
+        int endgameWeight = 12 - g.board.pieceCounts[0] - g.board.pieceCounts[1];
+        if (endgameWeight > 0) {
+            int otherKingInd = g.board.getKingInd(Piece.getOpposite(g.board.activeColor));
+            int kingInd = g.board.kingInd;
+            total += PrecomputedMoveData.distToCenter[otherKingInd];
+
+            total += 14 - PrecomputedMoveData.distBetween[kingInd][otherKingInd];
+            return total * 10 * endgameWeight;
+        } else {
+            return 0;
         }
-        endgameWeight /= 2;
-
-        Piece p = g.board.pieces.get(PieceType.KING).get(Piece.getOpposite(color)).get(0);
-        int enemyCol = p.square.col;
-        int enemyRow = p.square.row;
-        int xDiff = Math.max(3 - enemyCol, enemyCol - 4);
-        int yDiff = Math.max(3 - enemyRow, enemyRow - 4);
-        total += xDiff + yDiff;
-
-        p = g.board.pieces.get(PieceType.KING).get(color).get(0);
-        int distX = Math.abs(p.square.col - enemyCol);
-        int distY = Math.abs(p.square.row - enemyRow);
-        total += 14 - (distX + distY);
-        return total * 10 * endgameWeight;
     }
 
     public double getScore(Game g) {
         double total = 0;
         total += g.getMaterialScore() * (g.getActiveColor() == Piece.WHITE ? 1 : -1);
-        total += g.getMobilityDiff() * (g.getActiveColor() == color ? 1 : -1);
+        //total += g.getMobilityDiff() * (g.getActiveColor() == color ? 1 : -1);
         if (g.isEndgame()) {
             total += kingTrapWeight(g);
         }
         return total;
+    }
+
+    public void processCaptures(ArrayList<FastMove> moves) {
+        for (int i = moves.size() - 1; i >= 0; i--) {
+            // TODO: change move generation to avoid this extra work
+            FastMove move = moves.get(i);
+            if (move.isCapture()) {
+                move.score = getMoveScore(copy, move);
+            } else {
+                moves.remove(i);
+            }
+        }
+        Collections.sort(moves);
     }
 
     public double searchCaptures(double alpha, double beta) {
@@ -83,18 +91,10 @@ public class ScottAgent extends Agent {
         }
         alpha = Math.max(alpha, score);
 
-        ArrayList<Move> moves = new ArrayList<>(copy.board.moves);
-        for (int i = moves.size() - 1; i >= 0; i--) {
-            Move move = moves.get(i);
-            if (move.isCapture()) {
-                move.score = getMoveScore(copy, move);
-            } else {
-                moves.remove(i);
-            }
-        }
-        Collections.sort(moves);
+        ArrayList<FastMove> moves = new ArrayList<>(copy.board.moves);
+        processCaptures(moves);
 
-        for (Move move : moves) {
+        for (FastMove move : moves) {
             copy.makeMove(move);
             score = -searchCaptures(-beta, -alpha);
             copy.unmakeMove(move);
@@ -117,7 +117,7 @@ public class ScottAgent extends Agent {
             }
         }
 
-        ArrayList<Move> moves = new ArrayList<>(copy.board.moves);
+        ArrayList<FastMove> moves = new ArrayList<>(copy.board.moves);
         if (moves.size() == 0) {
             if (copy.board.isChecked()) {
                 return -999999 + copy.fullMoves;
@@ -125,12 +125,12 @@ public class ScottAgent extends Agent {
             return 0;
         }
 
-        for (Move move : moves) {
+        for (FastMove move : moves) {
             move.score = getMoveScore(copy, move);
         }
         Collections.sort(moves);
 
-        for (Move move : moves) {
+        for (FastMove move : moves) {
             copy.makeMove(move);
             double score = -search(depth - 1, -beta, -alpha);
             copy.unmakeMove(move);
@@ -147,16 +147,25 @@ public class ScottAgent extends Agent {
         return alpha;
     }
 
-    public Move getMove(Game game, int color) {
+    public double getEval(Game game) {
         this.copy = new Game(game);
         this.game = game;
         this.bestScore = -999999;
         this.bestMove = null;
         this.lastDepth = this.depth;
-        copy.board.updateInfo();
+        search(depth, -999999, 999999);
+        return bestScore;
+    }
+
+    public FastMove getMove(Game game, int color) {
+        this.copy = new Game(game);
+        this.game = game;
+        this.bestScore = -999999;
+        this.bestMove = null;
+        this.lastDepth = this.depth;
         long start = System.currentTimeMillis();
         search(depth, -999999, 999999);
         System.out.println(System.currentTimeMillis() - start + "ms");
-        return game.board.translateMove(bestMove);
+        return bestMove;
     }
 }

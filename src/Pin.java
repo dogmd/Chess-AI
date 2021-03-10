@@ -1,13 +1,12 @@
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
 
 public class Pin {
     Piece piece;
     Piece pinnedBy;
     King pinnedTo;
-    Set<Square> path;
+    ArrayList<Square> path;
 
-    public Pin(Piece piece, Piece pinnedBy, King pinnedTo, Set<Square> path) {
+    public Pin(Piece piece, Piece pinnedBy, King pinnedTo, ArrayList<Square> path) {
         this.piece = piece;
         this.pinnedBy = pinnedBy;
         this.pinnedTo = pinnedTo;
@@ -15,7 +14,7 @@ public class Pin {
     }
 
     public Pin(Pin pin, Board board) {
-        path = new HashSet<>();
+        path = new ArrayList<>();
         for (Square sq : pin.path) {
             path.add(board.board[sq.row][sq.col]);
         }

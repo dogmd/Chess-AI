@@ -11,6 +11,8 @@ public class Move implements Comparable<Move> {
     public static final int PROMOTION = 2;
     public static final int EN_PASSANT = 3;
 
+    public Move() {}
+
     public Move(Piece actor, Square start, Square end) {
         this.start = start;
         this.end = end;

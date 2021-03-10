@@ -1,17 +1,17 @@
 import java.util.ArrayList;
-import java.util.List;
 
 public class Game {
-    Board board;
+    FastBoard board;
     long blackMillis, whiteMillis, blackAdd, whiteAdd, turnStart;
     int halfMoves, fullMoves;
     GameState gameState;
-    ArrayList<Move> moveHistory;
+    ArrayList<FastMove> moveHistory;
 
     public Game(String fen, String timeFormat) {
         moveHistory = new ArrayList<>();
         try {
-            board = new Board(fen);
+            Board tempBoard = new Board(fen);
+            board = new FastBoard(tempBoard, this);
             String[] fields = fen.split(" ");
             halfMoves = Integer.parseInt(fields[4]);
             fullMoves = Integer.parseInt(fields[5]);
@@ -37,7 +37,7 @@ public class Game {
     }
 
     public Game(Game game) {
-        this.board = new Board(game.board);
+        this.board = new FastBoard(game.board);
         board.updateInfo();
         this.blackMillis = game.blackMillis;
         this.whiteMillis = game.whiteMillis;
@@ -47,65 +47,42 @@ public class Game {
         this.halfMoves = game.halfMoves;
         this.fullMoves = game.fullMoves;
         this.gameState = game.gameState;
-        this.moveHistory = new ArrayList<>(game.moveHistory);
+        this.moveHistory = new ArrayList<>(game.moveHistory.size());
+        for (FastMove move : game.moveHistory) {
+            this.moveHistory.add(new FastMove(move));
+        }
     }
 
     public int getMaterialScore() {
-        int total = 0;
-        boolean isEndgame = isEndgame();
-        for (List<List<Piece>> allPieces : board.pieces.values()) {
-            int whiteTotal = 0, blackTotal = 0;
-            for (List<Piece> allColors : allPieces) {
-                for (Piece p : allColors) {
-                    if (p.color == Piece.WHITE) {
-                        whiteTotal += p.getWeight(isEndgame);
-                    } else {
-                        blackTotal += p.getWeight(isEndgame);
-                    }
-                }
-            }
-            total += whiteTotal - blackTotal;
-        }
-        return total;
+        return board.getMaterialScore();
     }
 
     public boolean isEndgame() {
-        int totalPieces = 0;
-        for (List<List<Piece>> allPieces : board.pieces.values()) {
-            for (List<Piece> allColors : allPieces) {
-                for (Piece p : allColors) {
-                    totalPieces++;
-                }
-            }
-        }
-        return totalPieces <= 7;
+        return board.isEndgame();
     }
 
     public int getMobilityDiff() {
-        return board.moves.size() - board.threatening.size();
+        return board.getMobilityDiff();
     }
 
-    public void makeMove(Move move) {
-        if (Main.gameWindow != null) {
-            Main.gameWindow.gameView.selectedSquare = null;
-        }
+    public void makeMove(FastMove move) {
         if (move != null) {
-            if (move.actor.type == PieceType.PAWN || move.isCapture()) {
+            if (Piece.getType(move.actor) == Piece.PAWN || move.isCapture()) {
                 halfMoves = 0;
             } else {
                 halfMoves++;
                 if (halfMoves >= 100) {
-                    //System.out.println("Fifty-move draw rule available.");
                     gameState = GameState.DRAW;
                 }
             }
-            if (getActiveColor() == Piece.BLACK) {
+            if (board.activeColor == Piece.BLACK) {
                 fullMoves++;
                 blackMillis += blackAdd - (System.currentTimeMillis() - turnStart);
             } else {
                 whiteMillis += whiteAdd - (System.currentTimeMillis() - turnStart);
             }
-            board.makeMove(move);
+            FastBoard fastBoard = (FastBoard) board;
+            fastBoard.makeMove(move);
             moveHistory.add(move);
             checkSetEndState();
             turnStart = System.currentTimeMillis();
@@ -113,14 +90,14 @@ public class Game {
     }
 
     public void checkSetEndState() {
-        if (board.isStalemate(getActiveColor())) {
+        if (board.isStalemate()) {
             gameState = GameState.DRAW;
         } else if (board.isCheckmate()) {
             setWinner(getActiveColor());
         }
     }
 
-    public ArrayList<Move> getMoves() {
+    public ArrayList<FastMove> getMoves() {
         return board.moves;
     }
 
@@ -144,11 +121,12 @@ public class Game {
     }
 
     // Not a perfect reset
-    public void unmakeMove(Move move) {
-        if (move.actor.color == Piece.BLACK) {
+    public void unmakeMove(FastMove move) {
+        if (Piece.getColor(move.actor) == Piece.BLACK) {
             fullMoves--;
         }
-        board.unmakeMove(move);
+        FastBoard fastBoard = (FastBoard) board;
+        fastBoard.unmakeMove(move);
         moveHistory.remove(moveHistory.size() - 1);
     }
 
@@ -183,7 +161,7 @@ public class Game {
     }
 
     public String toFen() {
-        return board.toFen() + " " +  halfMoves + " " + fullMoves;
+        return board.toString() + " " +  halfMoves + " " + fullMoves;
     }
 
     public String toString() {

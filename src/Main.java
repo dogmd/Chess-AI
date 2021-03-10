@@ -4,11 +4,16 @@ import java.util.ConcurrentModificationException;
 public class Main {
     static GameWindow gameWindow;
     static String board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    static String time = "5:00/2|5:00/2";
+    static String time = "30:00/2|30:00/2";
     static String agent1Class = null, agent2Class = null;
     static String agent1Name = "WHITE", agent2Name = "BLACK";
     static Agent agent1 = null, agent2 = null;
+    static Agent evaluator;
+    static FastMove suggestedMove;
+    static String eval = "Eval: 0.00";
     static boolean displayEnabled = true;
+    static boolean soundsEnabled = true;
+    static boolean assistEnabled = false;
     static long delayMillis = 0;
     static int runCount = 1;
 
@@ -42,9 +47,17 @@ public class Main {
             } else if (arg.equals("-runcount")) {
                 runCount = Integer.parseInt(args[i + 1]);
                 i++;
+            } else if (arg.equals("-sound")) {
+                soundsEnabled = Boolean.parseBoolean(args[i + 1]);
+                i++;
+            } else if (arg.equals("-assist")) {
+                assistEnabled = Boolean.parseBoolean(args[i + 1]);
+                i++;
             }
         }
+        PrecomputedMoveData.calculate();
         Game game = new Game(board, time);
+        evaluator = new ScottAgent("3,true", game, Piece.WHITE);
         System.out.println(game);
         gameWindow = new GameWindow(game);
 
@@ -55,6 +68,10 @@ public class Main {
         if (agent2Class != null) {
             agent2 = getAgent(agent2Name, agent2Class, game);
             agent2.color = Piece.BLACK;
+        }
+
+        if (agent1 != null) {
+            new Thread(new EvalUpdater(new ScottAgent("3,true", game, game.getActiveColor()), game)).start();
         }
 
         int numGames = 0;
@@ -101,20 +118,28 @@ public class Main {
         return true;
     }
 
-    public static void makeMove(String source, Game game, Move move) {
-        System.out.println(source + " plays " + move.toString().replace("\n", ""));
-        GameState oldState = game.gameState;
-        game.makeMove(move);
-        System.out.println(game.toFen());
-        System.out.println(game.getMaterialScore() + "\n");
-        if (Main.displayEnabled) {
-            if (oldState != game.gameState) {
-                Main.gameWindow.playNotify();
-            } else {
-                gameWindow.playSound(move);
-                gameWindow.gameView.highlightedSquares.clear();
-                gameWindow.gameView.highlightedSquares.add(move.start);
-                gameWindow.gameView.highlightedSquares.add(move.end);
+    public static void makeMove(String source, Game game, FastMove move) {
+        if (Piece.getColor(move.actor) == game.board.activeColor) {
+            if (Main.gameWindow != null) {
+                Main.gameWindow.gameView.selectedSquare = FastBoard.EMPTY;
+            }
+            System.out.println(source + " plays " + move.toString().replace("\n", ""));
+            GameState oldState = game.gameState;
+            game.makeMove(move);
+            new Thread(new EvalUpdater(new ScottAgent("3,true", game, game.getActiveColor()), game)).start();
+//            Main.eval = "Eval: ...";
+//            double eval = evaluator.getEval(game) * (game.board.activeColor == Piece.WHITE ? 1 : -1);
+//            Main.eval = String.format("Eval: %.2f", eval);
+            System.out.println(game.getMaterialScore() + "\n");
+            if (Main.displayEnabled) {
+                if (oldState != game.gameState) {
+                    Main.gameWindow.playNotify();
+                } else {
+                    gameWindow.playSound(move);
+                    gameWindow.gameView.highlightedSquares.clear();
+                    gameWindow.gameView.highlightedSquares.add(move.start);
+                    gameWindow.gameView.highlightedSquares.add(move.end);
+                }
             }
         }
     }

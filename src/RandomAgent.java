@@ -13,8 +13,12 @@ public class RandomAgent extends Agent {
         return 0;
     }
 
-    public Move getMove(Game game, int color) {
-        ArrayList<Move> moves = game.getMoves();
+    public double getEval(Game g) {
+        return 0;
+    }
+
+    public FastMove getMove(Game game, int color) {
+        ArrayList<FastMove> moves = game.getMoves();
         if (moves.size() > 0) {
             return moves.get(rand.nextInt(moves.size()));
         }

@@ -7,8 +7,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,17 +40,26 @@ public class GameWindow extends JFrame implements KeyListener {
     @Override
     public void keyPressed(KeyEvent e) {
         if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_Z && game.moveHistory.size() > 0) {
-            Move undone = game.moveHistory.get(game.moveHistory.size() - 1);
+            FastMove undone = game.moveHistory.get(game.moveHistory.size() - 1);
             gameView.options.clear();
-            gameView.selectedSquare = null;
+            gameView.selectedSquare = FastBoard.EMPTY;
             gameView.highlightedSquares.clear();
-            gameView.alertedSquares.clear();
+            gameView.assistSquares.clear();
             game.unmakeMove(undone);
             gameView.selectedSquare = undone.start;
         } else if (e.getKeyCode() == KeyEvent.VK_T) {
             gameView.showThreatened = !gameView.showThreatened;
         } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
             game.togglePause();
+        } else if (e.getKeyCode() == KeyEvent.VK_A) {
+            Main.assistEnabled = !Main.assistEnabled;
+            if (Main.assistEnabled && Main.suggestedMove != null) {
+                gameView.assistSquares.clear();
+                gameView.assistSquares.add(Main.suggestedMove.start);
+                gameView.assistSquares.add(Main.suggestedMove.end);
+            } else {
+                gameView.assistSquares.clear();
+            }
         }
     }
 
@@ -60,15 +71,18 @@ public class GameWindow extends JFrame implements KeyListener {
     }
 
     public void playSound(String path) {
-        AudioInputStream audioInputStream = null;
-        Clip clip = null;
-        try {
-            audioInputStream = AudioSystem.getAudioInputStream(new File(path));
-            clip = AudioSystem.getClip();
-            clip.open(audioInputStream);
-            clip.start();
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (Main.soundsEnabled) {
+            AudioInputStream audioInputStream = null;
+            Clip clip = null;
+            try {
+                InputStream bufferedIn = new BufferedInputStream(ClassLoader.getSystemResourceAsStream(path));
+                audioInputStream = AudioSystem.getAudioInputStream(bufferedIn);
+                clip = AudioSystem.getClip();
+                clip.open(audioInputStream);
+                clip.start();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -91,20 +105,27 @@ class GameView extends JPanel implements ActionListener {
         public void mousePressed(MouseEvent e) {
             super.mousePressed(e);
             highlightedSquares.clear();
-            alertedSquares.clear();
             mouseX = e.getX();
             mouseY = e.getY();
             dragging = true;
-            Square clicked = getSelectedSquare(e.getX(), e.getY());
-            if (clicked != null) {
-                if (selectedSquare != null) {
+            int clicked = getSelectedSquare(e.getX(), e.getY());
+            if (clicked != -1) {
+                if (selectedSquare != -1) {
                     handleMove(clicked, e.getX(), e.getY());
                 }
-                if (clicked.isOccupied() && clicked.piece.color == game.getActiveColor()) {
-                    selectedSquare = clicked;
-                    options = MoveGenerator.generateMoves(game.board, selectedSquare.piece);
+                int piece = game.board.board[clicked];
+                if (piece != -1 && Piece.getColor(piece) == game.getActiveColor()) {
+                    if (!(Main.agent1 != null && Main.agent1.color == game.getActiveColor()) && !(Main.agent2 != null && Main.agent2.color == game.getActiveColor())) {
+                        selectedSquare = clicked;
+                        options.clear();
+                        for (FastMove move : game.board.moves) {
+                            if (move.start == selectedSquare) {
+                                options.add(move);
+                            }
+                        }
+                    }
                 } else {
-                    selectedSquare = null;
+                    selectedSquare = -1;
                 }
             }
             repaint();
@@ -116,7 +137,7 @@ class GameView extends JPanel implements ActionListener {
             mouseX = e.getX();
             mouseY = e.getY();
             dragging = false;
-            Square sq = getSelectedSquare(e.getX(), e.getY());
+            int sq = getSelectedSquare(e.getX(), e.getY());
             handleMove(sq, e.getX(), e.getY());
             repaint();
         }
@@ -124,7 +145,7 @@ class GameView extends JPanel implements ActionListener {
         @Override
         public void mouseDragged(MouseEvent e) {
             super.mouseDragged(e);
-            if (selectedSquare != null && selectedSquare.isOccupied()) {
+            if (selectedSquare != -1 && game.board.board[selectedSquare] != -1) {
                 mouseX = e.getX();
                 mouseY = e.getY();
             }
@@ -144,23 +165,24 @@ class GameView extends JPanel implements ActionListener {
     Game game;
     int height, width, mouseX, mouseY;
     boolean dragging, showThreatened;
-    Square selectedSquare;
+    int selectedSquare;
     Map<String, BufferedImage> cachedIcons;
-    ArrayList<Square> highlightedSquares;
-    ArrayList<Square> alertedSquares;
-    ArrayList<Move> options;
+    ArrayList<Integer> highlightedSquares;
+    ArrayList<Integer> assistSquares;
+    ArrayList<FastMove> options;
     int margins, boardWidth, squareWidth, smallOff;
 
     public GameView(Game game) {
         super(true);
         this.game = game;
         options = new ArrayList<>();
+        selectedSquare = -1;
         highlightedSquares = new ArrayList<>();
-        alertedSquares = new ArrayList<>();
+        assistSquares = new ArrayList<>();
         cachedIcons = new HashMap<>();
         try {
-            robotoBold = Font.createFont(Font.TRUETYPE_FONT, new File("fonts/Roboto-Bold.ttf"));
-            robotoBlack = Font.createFont(Font.TRUETYPE_FONT, new File("fonts/Roboto-Black.ttf"));
+            robotoBold = Font.createFont(Font.TRUETYPE_FONT, ClassLoader.getSystemResourceAsStream("fonts/Roboto-Bold.ttf"));
+            robotoBlack = Font.createFont(Font.TRUETYPE_FONT, ClassLoader.getSystemResourceAsStream("fonts/Roboto-Black.ttf"));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -169,14 +191,14 @@ class GameView extends JPanel implements ActionListener {
         timer.start();
     }
 
-    public void handleMove(Square clicked, int x, int y) {
-        if (selectedSquare != null && selectedSquare != clicked && selectedSquare.isOccupied()) {
-            PieceType selected;
-            for (Move move : options) {
+    public void handleMove(int clicked, int x, int y) {
+        if (selectedSquare != -1 && selectedSquare != clicked && game.board.board[selectedSquare] != -1) {
+            int selectedPromotion;
+            for (FastMove move : options) {
                 if (clicked == move.end) {
                     if (move.type == Move.PROMOTION) {
-                        selected = getSelectedPromotion(clicked, x, y);
-                        if (selected == move.promoteTo) {
+                        selectedPromotion = getSelectedPromotion(clicked, x, y);
+                        if (selectedPromotion == move.promoteTo) {
                             makeMove(move);
                             break;
                         }
@@ -189,29 +211,34 @@ class GameView extends JPanel implements ActionListener {
         }
     }
 
-    public void makeMove(Move move) {
-        selectedSquare = null;
+    public void makeMove(FastMove move) {
+        selectedSquare = -1;
         options.clear();
         Main.makeMove("HUMAN", game, move);
     }
 
-    public PieceType getSelectedPromotion(Square sq, int x, int y) {
+    public int getSelectedPromotion(int sq, int x, int y) {
         double sqWidth = squareWidth;
-        int topLeftX = margins + (int)(sqWidth * sq.col);
-        int topLeftY = margins + (int)(sqWidth * sq.row);
+        int row = sq / 8;
+        int col = sq - row * 8;
+        int topLeftX = margins + (int)(sqWidth * col);
+        int topLeftY = margins + (int)(sqWidth * row);
+        int color = game.board.activeColor;
+        int type = -1;
         if (x < topLeftX + sqWidth / 2 && y < topLeftY + sqWidth / 2) {
-            return PieceType.KNIGHT;
+            type = Piece.KNIGHT;
         } else if (x >= topLeftX + sqWidth / 2 && y >= topLeftY + sqWidth / 2) {
-            return PieceType.ROOK;
+            type = Piece.ROOK;
         } else if (x < topLeftX + sqWidth / 2 && y >= topLeftY + sqWidth / 2) {
-            return PieceType.BISHOP;
+            type = Piece.BISHOP;
         } else {
-            return PieceType.QUEEN;
+            type = Piece.QUEEN;
         }
+        return color << 3 | type;
     }
 
-    public Square getSelectedSquare(int x, int y) {
-        Square sq = null;
+    public int getSelectedSquare(int x, int y) {
+        int sq = -1;
         int minX = margins;
         int minY = margins;
         int maxX = margins + boardWidth;
@@ -219,7 +246,7 @@ class GameView extends JPanel implements ActionListener {
         if(x > minX && x < maxX && y > minY && y < maxY) {
             int col = (x - minX) / squareWidth;
             int row = (y - minY) / squareWidth;
-            sq = game.board.board[row][col];
+            sq = row * 8 + col;
         }
         return sq;
     }
@@ -249,10 +276,11 @@ class GameView extends JPanel implements ActionListener {
         imageTranscoder.addTranscodingHint(PNGTranscoder.KEY_WIDTH, width);
         imageTranscoder.addTranscodingHint(PNGTranscoder.KEY_HEIGHT, height);
 
-        TranscoderInput input = new TranscoderInput(svgFile);
+        TranscoderInput input = null;
         try {
+            input = new TranscoderInput(ClassLoader.getSystemResourceAsStream(svgFile));
             imageTranscoder.transcode(input, null);
-        } catch (TranscoderException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -270,53 +298,63 @@ class GameView extends JPanel implements ActionListener {
     }
 
     public void drawBoard(Graphics g) {
-        Square[][] board = game.board.board;
-        for (int i = 0; i < board.length; i++) {
-            for (int j = 0; j < board[i].length; j++) {
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                int ind = i * 8 + j;
                 Graphics2D g2 = (Graphics2D) g;
                 g2.setStroke(new BasicStroke(2));
                 g.setColor(Color.BLACK);
                 g.drawRect(margins + (j * squareWidth), margins + (i * squareWidth), squareWidth, squareWidth);
-                Square sq = board[i][j];
-                if (sq.isLight()) {
+                if ((i + j) % 2 == 0) { // square is light
                     g.setColor(LIGHT_GREY);
                 } else {
                     g.setColor(DARK_GREY);
                 }
-                if (highlightedSquares.contains(sq)) {
+                if (highlightedSquares.contains(ind)) {
                     g.setColor(BLUE);
                 }
-                if (alertedSquares.contains(sq)) {
+                if (assistSquares.contains(ind)) {
                     g.setColor(YELLOW);
                 }
-                if (selectedSquare == sq) {
+                if (selectedSquare == ind) {
                     g.setColor(GREEN);
                 }
                 g.fillRect(margins + (j * squareWidth), margins + (i * squareWidth), squareWidth, squareWidth);
             }
         }
-        drawOptions(g);
         if (showThreatened) {
-            for (Square sq : game.board.threatening) {
-                g.setColor(BLUE);
-                Graphics2D g2d = (Graphics2D) g;
-                g2d.setStroke(new BasicStroke(4));
-                g2d.fillRect(margins + sq.col * squareWidth, margins + sq.row * squareWidth, squareWidth, squareWidth);
-            }
-            for (Square sq : game.board.checkPath) {
-                g.setColor(YELLOW);
-                g.fillRect(margins + sq.col * squareWidth, margins + sq.row * squareWidth, squareWidth, squareWidth);
-            }
-            for (Pin pin : game.board.pins) {
-                g.setColor(new Color((float)Math.random(), (float)Math.random(), (float)Math.random()));
-                for (Square sq : pin.path) {
-                    g.fillRect(margins + sq.col * squareWidth, margins + sq.row * squareWidth, squareWidth, squareWidth);
+            for (int i = 0; i < 64; i++) {
+                int row = i / 8;
+                int col = i - row * 8;
+                if (game.board.threatening[i]) {
+                    g.setColor(BLUE);
+                    Graphics2D g2d = (Graphics2D) g;
+                    g2d.setStroke(new BasicStroke(4));
+                    g2d.fillRect(margins + col * squareWidth, margins + row * squareWidth, squareWidth, squareWidth);
+                }
+                if (game.board.pins[i]) {
+                    g.setColor(new Color(0xef6c00));
+                    g.fillRect(margins + col * squareWidth, margins + row * squareWidth, squareWidth, squareWidth);
+                }
+                if (game.board.checkPath[i]) {
+                    g.setColor(YELLOW);
+                    g.fillRect(margins + col * squareWidth, margins + row * squareWidth, squareWidth, squareWidth);
                 }
             }
+//            if (selectedSquare != -1) {
+//                for (int i = 0; i < PrecomputedMoveData.whitePawnAttacks[selectedSquare].length; i++) {
+//                    int ind = PrecomputedMoveData.whitePawnAttacks[selectedSquare][i];
+//                    int row = ind / 8;
+//                    int col = ind - row * 8;
+//                    g.setColor(new Color(0x40c4ff));
+//                    g.fillRect(margins + col * squareWidth, margins + row * squareWidth, squareWidth, squareWidth);
+//                }
+//            }
         }
+        drawOptions(g);
         drawPieces(g);
 
-        for (int i = 0; i < board.length; i++) {
+        for (int i = 0; i < 8; i++) {
             g.setColor(Color.WHITE);
             g.setFont(robotoBlack.deriveFont(smallOff * 2.5f));
             String text = "" + (char)('A' + i);
@@ -330,45 +368,54 @@ class GameView extends JPanel implements ActionListener {
     }
 
     public void drawPieces(Graphics g) {
-        for (java.util.List<java.util.List<Piece>> allColors : game.board.pieces.values()) {
-            for (java.util.List<Piece> color : allColors) {
-                for (int i = color.size() - 1; i >= 0; i--) {
-                    Piece p = color.get(i);
-                    Square sq = p.square;
-                    if (sq != null && sq.isOccupied() && (sq != selectedSquare || !dragging)) {
-                        String fileName = "icons/" + Character.toLowerCase(sq.piece.getChar()) + (sq.piece.isWhite() ? "w" : "b") + ".svg";
-                        g.drawImage(cachedIcons.get(fileName), margins + (sq.col * squareWidth), margins + (sq.row * squareWidth), this);
-                    }
+        for (int color = 0; color < 2; color++) {
+            for (int i = 0; i < game.board.pieceCounts[color]; i++) {
+                int ind = game.board.pieces[color][i];
+                int piece = game.board.board[ind];
+                if (piece != -1 && (ind != selectedSquare || !dragging)) {
+                    int row = ind / 8;
+                    int col = ind - row * 8;
+                    String fileName = "icons/" + Piece.getFenChar(piece).toLowerCase() + (color == Piece.WHITE ? "w" : "b") + ".svg";
+                    g.drawImage(cachedIcons.get(fileName), margins + (col * squareWidth), margins + (row * squareWidth), this);
                 }
             }
         }
     }
 
     public void drawOptions(Graphics g) {
-        if (selectedSquare != null && selectedSquare.isOccupied()) {
-            if (options.size() == 0) {
-                options = MoveGenerator.generateMoves(game.board, selectedSquare.piece);
-            }
-            for (Move move : options) {
-                if (move.type == Move.PROMOTION) {
-                    String color = move.actor.color == Piece.WHITE ? "w" : "b";
-                    String fileName = "icons/promote" + color + ".svg";
-                    g.drawImage(cachedIcons.get(fileName), margins + (move.end.col * squareWidth), margins + (move.end.row * squareWidth), this.getParent());
-                } else {
-                    if (move.isCapture()) {
-                        Graphics2D g2 = (Graphics2D) g;
-                        g2.setStroke(new BasicStroke(2));
-                        g.setColor(Color.BLACK);
-                        g.drawRect(margins + (squareWidth * move.end.col), margins + (squareWidth * move.end.row), squareWidth, squareWidth);
-                        g.setColor(RED);
-                        g.fillRect(margins + (squareWidth * move.end.col), margins + (squareWidth * move.end.row), squareWidth, squareWidth);
+        if (selectedSquare != -1) {
+            int piece = game.board.board[selectedSquare];
+            if (piece != -1) {
+                if (options.size() == 0) {
+                    for (FastMove move : game.board.moves) {
+                        if (move.start == selectedSquare) {
+                            options.add(move);
+                        }
+                    }
+                }
+                for (FastMove move : options) {
+                    int row = move.end / 8;
+                    int col = move.end - row * 8;
+                    if (move.type == Move.PROMOTION) {
+                        String color = Piece.getColor(move.actor) == Piece.WHITE ? "w" : "b";
+                        String fileName = "icons/promote" + color + ".svg";
+                        g.drawImage(cachedIcons.get(fileName), margins + (col * squareWidth), margins + (row * squareWidth), this.getParent());
                     } else {
-                        g.setColor((move.end.isLight() ? LIGHT_GREY : DARK_GREY).darker());
-                        int x = margins + (squareWidth * move.end.col) + squareWidth / 4;
-                        int y = margins + (squareWidth * move.end.row) + squareWidth / 4;
-                        int diam = squareWidth / 2;
-                        g.drawOval(x, y, diam, diam);
-                        g.fillOval(x, y, diam, diam);
+                        if (move.isCapture()) {
+                            Graphics2D g2 = (Graphics2D) g;
+                            g2.setStroke(new BasicStroke(2));
+                            g.setColor(Color.BLACK);
+                            g.drawRect(margins + (squareWidth * col), margins + (squareWidth * row), squareWidth, squareWidth);
+                            g.setColor(RED);
+                            g.fillRect(margins + (squareWidth * col), margins + (squareWidth * row), squareWidth, squareWidth);
+                        } else {
+                            g.setColor(((row + col) % 2 == 0 ? LIGHT_GREY : DARK_GREY).darker());
+                            int x = margins + (squareWidth * col) + squareWidth / 4;
+                            int y = margins + (squareWidth * row) + squareWidth / 4;
+                            int diam = squareWidth / 2;
+                            g.drawOval(x, y, diam, diam);
+                            g.fillOval(x, y, diam, diam);
+                        }
                     }
                 }
             }
@@ -393,8 +440,16 @@ class GameView extends JPanel implements ActionListener {
         g.drawString(time, margins + smallOff + boardWidth + (lineWidth - textWidth) / 4, (squareWidth * 4) + g.getFont().getSize() + margins);
     }
 
+    public void drawEval(Graphics g) {
+        g.setColor(Color.WHITE);
+        int lineWidth = (int)(width * (1 - BOARD_SCALE)) - smallOff;
+        g.setFont(robotoBold.deriveFont(lineWidth * 0.1f));
+        g.drawString(Main.eval, margins + smallOff + boardWidth, margins + boardWidth - smallOff);
+    }
+
     public void dragSelected(Graphics g) {
-        String fileName = "icons/" + Character.toLowerCase(selectedSquare.piece.getChar()) + (selectedSquare.piece.isWhite() ? "w" : "b") + ".svg";
+        int piece = game.board.board[selectedSquare];
+        String fileName = "icons/" + Piece.getFenChar(piece).toLowerCase() + (Piece.getColor(piece) == Piece.WHITE ? "w" : "b") + ".svg";
         int x = mouseX;
         int y = mouseY;
         int max = margins + boardWidth + squareWidth / 2;
@@ -444,8 +499,9 @@ class GameView extends JPanel implements ActionListener {
 
         drawBoard(g);
         drawTime(g);
+        drawEval(g);
 
-        if (selectedSquare != null && selectedSquare.isOccupied() && dragging) {
+        if (selectedSquare != -1 && game.board.board[selectedSquare] != -1 && dragging) {
             dragSelected(g);
         }
 

@@ -7,7 +7,7 @@ public class Board {
     Set<Square> threatening;
     boolean multiCheck;
     boolean[] checkVectors; // directions check is coming from
-    Set<Square> checkPath;
+    ArrayList<Square> checkPath;
     List<Pin> pins;
     int activeColor;
 
@@ -17,7 +17,7 @@ public class Board {
         moves = new ArrayList<>();
         pins = new ArrayList<>();
         threatening = new HashSet<>();
-        checkPath = new HashSet<>();
+        checkPath = new ArrayList<>();
         checkVectors = new boolean[8];
         initPieces();
 
@@ -53,7 +53,7 @@ public class Board {
         for (Square sq : b.threatening) {
             threatening.add(board[sq.row][sq.col]);
         }
-        checkPath = new HashSet<>();
+        checkPath = new ArrayList<>();
         for (Square sq : b.checkPath) {
             checkPath.add(board[sq.row][sq.col]);
         }
@@ -105,6 +105,25 @@ public class Board {
             }
         }
         return tempMoves;
+    }
+
+    public Move translateMove(FastMove move) {
+        int startRow = move.start / 8;
+        int startCol = move.start - startRow * 8;
+        int endRow = move.end / 8;
+        int endCol = move.end - endRow * 8;
+        Move newMove = new Move(board[startRow][startCol], board[endRow][endCol]);
+        int type = Piece.getType(move.promoteTo);
+        newMove.promoteTo = Piece.getPieceType(type);
+        newMove.type = move.type;
+        newMove.firstMove = move.firstMove;
+
+        if (move.type == Move.CASTLE) {
+            newMove.captured = board[move.captured / 8][move.captured % 8].piece;
+        } else if (move.type == Move.EN_PASSANT) {
+            newMove.captured = board[startRow][endCol].piece;
+        }
+        return newMove;
     }
 
     public Move translateMove(Move move) {
@@ -290,7 +309,7 @@ public class Board {
                 int col = king.square.col + xOff;
                 int offCount = 1;
                 Piece pinning = null;
-                Set<Square> path = new HashSet<>();
+                ArrayList<Square> path = new ArrayList<>();
                 while (col >= 0 && col < 8 && row >= 0 && row < 8) {
                     Square sq = board[row][col];
                     path.add(sq);
@@ -374,6 +393,41 @@ public class Board {
             }
         }
         return true;
+    }
+
+    public int getMaterialScore() {
+        int total = 0;
+        boolean isEndgame = isEndgame();
+        for (List<List<Piece>> allPieces : pieces.values()) {
+            int whiteTotal = 0, blackTotal = 0;
+            for (List<Piece> allColors : allPieces) {
+                for (Piece p : allColors) {
+                    if (p.color == Piece.WHITE) {
+                        whiteTotal += p.getWeight(isEndgame);
+                    } else {
+                        blackTotal += p.getWeight(isEndgame);
+                    }
+                }
+            }
+            total += whiteTotal - blackTotal;
+        }
+        return total;
+    }
+
+    public boolean isEndgame() {
+        int totalPieces = 0;
+        for (List<List<Piece>> allPieces :pieces.values()) {
+            for (List<Piece> allColors : allPieces) {
+                for (Piece p : allColors) {
+                    totalPieces++;
+                }
+            }
+        }
+        return totalPieces <= 11;
+    }
+
+    public int getMobilityDiff() {
+        return moves.size() - threatening.size();
     }
 
     public String toFen() {

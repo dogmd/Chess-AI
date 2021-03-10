@@ -26,6 +26,10 @@ public class Square {
         }
     }
 
+    public int getIndex() {
+        return row * 8 + col;
+    }
+
     public Piece getPiece() {
         return piece;
     }
