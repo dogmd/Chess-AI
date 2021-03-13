@@ -1,6 +1,4 @@
-import javax.swing.*;
-
-public class FastMove implements Comparable<FastMove> {
+public class Move implements Comparable<Move> {
     int start, end;
     int actor;
     int captured;
@@ -13,7 +11,7 @@ public class FastMove implements Comparable<FastMove> {
     public static final int PROMOTION = 2;
     public static final int EN_PASSANT = 3;
 
-    public FastMove(int actor, int captured, int start, int end, FastBoard board) {
+    public Move(int actor, int captured, int start, int end, Board board) {
         this.actor = actor;
         this.captured = captured;
         this.start = start;
@@ -21,7 +19,7 @@ public class FastMove implements Comparable<FastMove> {
         this.firstMove = !board.hasMoved[start];
     }
 
-    public FastMove(FastMove from) {
+    public Move(Move from) {
         this.start = from.start;
         this.end = from.end;
         this.actor = from.actor;
@@ -33,7 +31,7 @@ public class FastMove implements Comparable<FastMove> {
     }
 
     public boolean isCapture() {
-        return captured != FastBoard.EMPTY && type != CASTLE;
+        return captured != Board.EMPTY && type != CASTLE;
     }
 
     public String toString() {
@@ -42,13 +40,13 @@ public class FastMove implements Comparable<FastMove> {
         } else {
             String piece = Piece.getChar(actor);
             String capture = isCapture() ? "x" : "";
-            String dest = FastBoard.coorConvert(end);
+            String dest = Board.coorConvert(end);
             String promotion = type == PROMOTION ? Piece.getChar(promoteTo) : "";
             return piece + capture + dest + promotion;
         }
     }
 
-    public int compareTo(FastMove move) {
+    public int compareTo(Move move) {
         return (int)(move.score - this.score);
     }
 }

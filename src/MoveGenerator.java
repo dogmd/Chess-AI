@@ -2,27 +2,27 @@ import java.util.ArrayList;
 
 // Translates some parts from https://github.com/SebLague/Chess-AI/blob/d0832f8f1d32ddfb95525d1f1e5b772a367f272e/Assets/Scripts/Core/MoveGenerator.cs
 
-public class FastMoveGenerator {
+public class MoveGenerator {
     public static final int[] CASTLE_DIRECTIONS = new int[]{-2, 2};
     public static final int[] ALL_OFFSETS = new int[]{8, -8, -1, 1, 7, -7, 9, -9};
     public static final int[][] PAWN_ATTACKS = new int[][]{new int[]{7, 5}, new int[]{4, 6}};
     public static final int[] PROMOTE_OPTIONS = new int[]{Piece.KNIGHT, Piece.QUEEN, Piece.ROOK, Piece.BISHOP};
-    FastBoard board;
+    Board board;
     boolean onlyThreats, inCheck;
 
-    public ArrayList<FastMove> generateThreats(FastBoard b) {
+    public ArrayList<Move> generateThreats(Board b) {
         return generateMoves(b, Piece.getOpposite(b.activeColor));
     }
 
-    public ArrayList<FastMove> generateMoves(FastBoard b) {
+    public ArrayList<Move> generateMoves(Board b) {
         return generateMoves(b, b.activeColor);
     }
 
-    public ArrayList<FastMove> generateMoves(FastBoard b, int color) {
+    public ArrayList<Move> generateMoves(Board b, int color) {
         onlyThreats = b.activeColor != color;
         inCheck = b.isChecked();
         board = b;
-        ArrayList<FastMove> moves = new ArrayList<>(64);
+        ArrayList<Move> moves = new ArrayList<>(64);
 
         if (!onlyThreats) {
             addKingMoves(board.kingInd, moves);
@@ -53,7 +53,7 @@ public class FastMoveGenerator {
         return moves;
     }
 
-    public void addKingMoves(int start, ArrayList<FastMove> moves) {
+    public void addKingMoves(int start, ArrayList<Move> moves) {
         int color = Piece.getColor(board.board[start]);
         for (int i = 0; i < PrecomputedMoveData.kingMoves[start].length; i++) {
             int currInd = PrecomputedMoveData.kingMoves[start][i];
@@ -62,7 +62,7 @@ public class FastMoveGenerator {
 
             if (currColor == color) {
                 if (onlyThreats) {
-                    moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                    moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                 }
                 continue;
             }
@@ -78,10 +78,10 @@ public class FastMoveGenerator {
                 int oppositeInd = start - (currInd - start);
                 if (oppositeInd > 0 && oppositeInd <= 63) {
                     if (!board.checkPath[oppositeInd]) {
-                        moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                        moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                     }
                 } else {
-                    moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                    moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                 }
             }
         }
@@ -89,15 +89,15 @@ public class FastMoveGenerator {
             for (int direction : CASTLE_DIRECTIONS) {
                 int canCastle = canCastle(start, direction, board);
                 if (!onlyThreats && canCastle != -1) {
-                    FastMove move = new FastMove(board.board[start], canCastle, start, start + direction, board);
-                    move.type = FastMove.CASTLE;
+                    Move move = new Move(board.board[start], canCastle, start, start + direction, board);
+                    move.type = Move.CASTLE;
                     moves.add(move);
                 }
             }
         }
     }
 
-    public static int canCastle(int start, int direction, FastBoard board) {
+    public static int canCastle(int start, int direction, Board board) {
         if (board.hasMoved[start] || Piece.getType(board.board[start]) != Piece.KING) {
             return -1;
         }
@@ -108,13 +108,13 @@ public class FastMoveGenerator {
         }
         int ind = row * 8 + col;
 
-        if (board.board[ind] != FastBoard.EMPTY) {
+        if (board.board[ind] != Board.EMPTY) {
             int rook = board.board[ind];
             if (Piece.getType(rook) == Piece.ROOK && !board.hasMoved[ind]) {
                 int offset = direction > 0 ? 1 : -1;
                 int testInd = start + offset;
                 while (testInd != ind) {
-                    if (board.board[testInd] != FastBoard.EMPTY || board.threatening[testInd]) {
+                    if (board.board[testInd] != Board.EMPTY || board.threatening[testInd]) {
                         return -1;
                     }
                     testInd += offset;
@@ -125,7 +125,7 @@ public class FastMoveGenerator {
         return -1;
     }
 
-    public void addSlideMoves(int start, ArrayList<FastMove> moves, int startOffInd, int endOffInd) {
+    public void addSlideMoves(int start, ArrayList<Move> moves, int startOffInd, int endOffInd) {
         boolean isPinned = board.pins[start];
         int color = Piece.getColor(board.board[start]);
 
@@ -150,20 +150,20 @@ public class FastMoveGenerator {
 
                 if (color == currColor) {
                     if (onlyThreats) {
-                        moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                        moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                     }
                     break;
                 }
-                boolean isCapture = currPiece != FastBoard.EMPTY;
+                boolean isCapture = currPiece != Board.EMPTY;
                 boolean blocksCheck = blocksCheck(currInd);
                 if (blocksCheck || !inCheck) {
-                    moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                    moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                 }
 
                 // if not empty or a move blocks check, it is not possible to continue
                 if (isCapture || blocksCheck) {
                     if (onlyThreats) {
-                        moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                        moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                     }
                     break;
                 }
@@ -171,7 +171,7 @@ public class FastMoveGenerator {
         }
     }
 
-    public void addKnightMoves(int start, ArrayList<FastMove> moves) {
+    public void addKnightMoves(int start, ArrayList<Move> moves) {
         int color = Piece.getColor(board.board[start]);
         if (!onlyThreats && board.pins[start]) {
             return;
@@ -187,14 +187,14 @@ public class FastMoveGenerator {
                 continue;
             }
             if (isCapture) {
-                moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                moves.add(new Move(board.board[start], currPiece, start, currInd, board));
             } else if (onlyThreats || currColor == -1) {
-                moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                moves.add(new Move(board.board[start], currPiece, start, currInd, board));
             }
         }
     }
 
-    public void addPawnMoves(int start, ArrayList<FastMove> moves) {
+    public void addPawnMoves(int start, ArrayList<Move> moves) {
         int color = Piece.getColor(board.board[start]);
         int pawnOffset = color == Piece.WHITE ? -8 : 8;
         int startRow = board.activeColor == Piece.BLACK ? 1 : 6;
@@ -204,10 +204,10 @@ public class FastMoveGenerator {
         // advancements
         if (!onlyThreats) {
             int oneAdvance = start + pawnOffset;
-            if (board.board[oneAdvance] == FastBoard.EMPTY) {
+            if (board.board[oneAdvance] == Board.EMPTY) {
                 if (!board.pins[start] || movingAlongRay(pawnOffset, start, board.kingInd)) {
                     if (!inCheck || blocksCheck(oneAdvance)) {
-                        FastMove move = new FastMove(board.board[start], FastBoard.EMPTY, start, oneAdvance, board);
+                        Move move = new Move(board.board[start], Board.EMPTY, start, oneAdvance, board);
                         if (row == endRow) {
                             addPromotions(move, moves);
                         } else {
@@ -216,9 +216,9 @@ public class FastMoveGenerator {
                     }
                     if (row == startRow) {
                         int twoAdvance = oneAdvance + pawnOffset;
-                        if (board.board[twoAdvance] == FastBoard.EMPTY) {
+                        if (board.board[twoAdvance] == Board.EMPTY) {
                             if (!inCheck || blocksCheck(twoAdvance)) {
-                                moves.add(new FastMove(board.board[start], FastBoard.EMPTY, start, twoAdvance, board));
+                                moves.add(new Move(board.board[start], Board.EMPTY, start, twoAdvance, board));
                             }
                         }
                     }
@@ -239,12 +239,12 @@ public class FastMoveGenerator {
                 }
 
                 if (onlyThreats) {
-                    moves.add(new FastMove(board.board[start], currPiece, start, currInd, board));
+                    moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                 } else if (Piece.getOpposite(color) == currColor) {
                     if (inCheck && !blocksCheck(currInd)) {
                         continue;
                     }
-                    FastMove move = new FastMove(board.board[start], currPiece, start, currInd, board);
+                    Move move = new Move(board.board[start], currPiece, start, currInd, board);
                     if (row == endRow) {
                         addPromotions(move, moves);
                     } else {
@@ -255,8 +255,8 @@ public class FastMoveGenerator {
                 if (currInd == board.enPassantable) {
                     if (!enPassantRevealsCheck(start, currInd)) {
                         int ind = (start / 8) * 8 + currInd % 8;
-                        FastMove move = new FastMove(board.board[start], board.board[ind], start, currInd, board);
-                        move.type = FastMove.EN_PASSANT;
+                        Move move = new Move(board.board[start], board.board[ind], start, currInd, board);
+                        move.type = Move.EN_PASSANT;
                         moves.add(move);
                     }
                 }
@@ -276,7 +276,7 @@ public class FastMoveGenerator {
             int kingCol = startCol + i * -offset;
             if (threatCol >= 0 && threatCol <= 7) {
                 int ind = startRow * 8 + threatCol;
-                if (board.board[ind] != FastBoard.EMPTY) {
+                if (board.board[ind] != Board.EMPTY) {
                     int currColor = Piece.getColor(board.board[ind]);
                     int type = Piece.getType(board.board[ind]);
                     if ((currColor != color) && type == Piece.ROOK || type == Piece.QUEEN) {
@@ -286,7 +286,7 @@ public class FastMoveGenerator {
             }
             if (kingCol >= 0 && kingCol <= 7) {
                 int ind = startRow * 8 + kingCol;
-                if (board.board[ind] != FastBoard.EMPTY) {
+                if (board.board[ind] != Board.EMPTY) {
                     int currColor = Piece.getColor(board.board[ind]);
                     int type = Piece.getType(board.board[ind]);
                     if ((currColor == color) && type == Piece.KING) {
@@ -298,12 +298,12 @@ public class FastMoveGenerator {
         return hasKing && hasThreat;
     }
 
-    public void addPromotions(FastMove move, ArrayList<FastMove> moves) {
+    public void addPromotions(Move move, ArrayList<Move> moves) {
         int color = Piece.getColor(move.actor);
         for (int type : PROMOTE_OPTIONS) {
-            FastMove newMove = new FastMove(move.actor, move.captured, move.start, move.end, board);
+            Move newMove = new Move(move.actor, move.captured, move.start, move.end, board);
             newMove.promoteTo = color << 3 | type;
-            newMove.type = FastMove.PROMOTION;
+            newMove.type = Move.PROMOTION;
             moves.add(newMove);
         }
     }

@@ -5,7 +5,7 @@ public class ScottAgent extends Agent {
     long evalCount;
     int depth;
     Game copy;
-    FastMove bestMove;
+    Move bestMove;
     double bestScore;
     int lastDepth;
     boolean searchCaptures;
@@ -23,7 +23,7 @@ public class ScottAgent extends Agent {
         }
     }
 
-    public double getMoveScore(Game g, FastMove move) {
+    public double getMoveScore(Game g, Move move) {
         double total = 0;
         boolean isEndgame = g.isEndgame();
         int startRow = move.start / 8;
@@ -36,7 +36,7 @@ public class ScottAgent extends Agent {
             int capturedWeight = Piece.getWeight(move.captured, endRow, endCol, isEndgame);
             total += 10 * capturedWeight - actorWeight;
         }
-        if (move.type == FastMove.PROMOTION) {
+        if (move.type == Move.PROMOTION) {
             total += 2 * Piece.getWeight(move.promoteTo, endRow, endCol, isEndgame);
         }
         if (g.board.pawnThreats[move.end]) {
@@ -71,10 +71,10 @@ public class ScottAgent extends Agent {
         return total;
     }
 
-    public void processCaptures(ArrayList<FastMove> moves) {
+    public void processCaptures(ArrayList<Move> moves) {
         for (int i = moves.size() - 1; i >= 0; i--) {
             // TODO: change move generation to avoid this extra work
-            FastMove move = moves.get(i);
+            Move move = moves.get(i);
             if (move.isCapture()) {
                 move.score = getMoveScore(copy, move);
             } else {
@@ -91,10 +91,10 @@ public class ScottAgent extends Agent {
         }
         alpha = Math.max(alpha, score);
 
-        ArrayList<FastMove> moves = new ArrayList<>(copy.board.moves);
+        ArrayList<Move> moves = new ArrayList<>(copy.board.moves);
         processCaptures(moves);
 
-        for (FastMove move : moves) {
+        for (Move move : moves) {
             copy.makeMove(move);
             score = -searchCaptures(-beta, -alpha);
             copy.unmakeMove(move);
@@ -109,7 +109,7 @@ public class ScottAgent extends Agent {
     }
 
     public double search(int depth, double alpha, double beta) {
-        ArrayList<FastMove> moves = new ArrayList<>(copy.board.moves);
+        ArrayList<Move> moves = new ArrayList<>(copy.board.moves);
         if (moves.size() == 0) {
             if (copy.board.isChecked()) {
                 return -999999 + copy.fullMoves;
@@ -124,12 +124,12 @@ public class ScottAgent extends Agent {
             }
         }
 
-        for (FastMove move : moves) {
+        for (Move move : moves) {
             move.score = getMoveScore(copy, move);
         }
         Collections.sort(moves);
 
-        for (FastMove move : moves) {
+        for (Move move : moves) {
             copy.makeMove(move);
             double score = -search(depth - 1, -beta, -alpha);
             copy.unmakeMove(move);
@@ -156,7 +156,7 @@ public class ScottAgent extends Agent {
         return bestScore;
     }
 
-    public FastMove getMove(Game game, int color) {
+    public Move getMove(Game game, int color) {
         this.evalCount = 0;
         this.copy = new Game(game);
         this.game = game;

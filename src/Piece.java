@@ -1,5 +1,3 @@
-import java.util.ArrayList;
-
 public class Piece {
     static final int WHITE = 0;
     static final int BLACK = 1;
@@ -14,17 +12,17 @@ public class Piece {
     }
 
     public static int getType(int piece) {
-        if (piece != FastBoard.EMPTY) {
+        if (piece != Board.EMPTY) {
             return piece & 0b111;
         }
-        return FastBoard.EMPTY;
+        return Board.EMPTY;
     }
 
     public static int getColor(int piece) {
-        if (piece != FastBoard.EMPTY) {
+        if (piece != Board.EMPTY) {
             return piece >> 3;
         }
-        return FastBoard.EMPTY;
+        return Board.EMPTY;
     }
 
     public static String getChar(int piece) {

@@ -13,5 +13,5 @@ public abstract class Agent {
 
     abstract public double getEval(Game g);
 
-    abstract public FastMove getMove(Game g, int color);
+    abstract public Move getMove(Game g, int color);
 }

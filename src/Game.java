@@ -1,16 +1,16 @@
 import java.util.ArrayList;
 
 public class Game {
-    FastBoard board;
+    Board board;
     long blackMillis, whiteMillis, blackAdd, whiteAdd, turnStart;
     int halfMoves, fullMoves;
     GameState gameState;
-    ArrayList<FastMove> moveHistory;
+    ArrayList<Move> moveHistory;
 
     public Game(String fen, String timeFormat) {
         moveHistory = new ArrayList<>();
         try {
-            board = new FastBoard(fen, this);
+            board = new Board(fen, this);
             String[] fields = fen.split(" ");
             halfMoves = Integer.parseInt(fields[4]);
             fullMoves = Integer.parseInt(fields[5]);
@@ -35,7 +35,7 @@ public class Game {
     }
 
     public Game(Game game) {
-        this.board = new FastBoard(game.board);
+        this.board = new Board(game.board);
         board.updateInfo();
         this.blackMillis = game.blackMillis;
         this.whiteMillis = game.whiteMillis;
@@ -46,8 +46,8 @@ public class Game {
         this.fullMoves = game.fullMoves;
         this.gameState = game.gameState;
         this.moveHistory = new ArrayList<>(game.moveHistory.size());
-        for (FastMove move : game.moveHistory) {
-            this.moveHistory.add(new FastMove(move));
+        for (Move move : game.moveHistory) {
+            this.moveHistory.add(new Move(move));
         }
     }
 
@@ -63,7 +63,7 @@ public class Game {
         return board.getMobilityDiff();
     }
 
-    public void makeMove(FastMove move) {
+    public void makeMove(Move move) {
         if (move != null) {
             if (Piece.getType(move.actor) == Piece.PAWN || move.isCapture()) {
                 halfMoves = 0;
@@ -79,8 +79,7 @@ public class Game {
             } else {
                 whiteMillis += whiteAdd - (System.currentTimeMillis() - turnStart);
             }
-            FastBoard fastBoard = (FastBoard) board;
-            fastBoard.makeMove(move);
+            board.makeMove(move);
             moveHistory.add(move);
             checkSetEndState();
             turnStart = System.currentTimeMillis();
@@ -95,7 +94,7 @@ public class Game {
         }
     }
 
-    public ArrayList<FastMove> getMoves() {
+    public ArrayList<Move> getMoves() {
         return board.moves;
     }
 
@@ -119,12 +118,11 @@ public class Game {
     }
 
     // Not a perfect reset
-    public void unmakeMove(FastMove move) {
+    public void unmakeMove(Move move) {
         if (Piece.getColor(move.actor) == Piece.BLACK) {
             fullMoves--;
         }
-        FastBoard fastBoard = (FastBoard) board;
-        fastBoard.unmakeMove(move);
+        board.unmakeMove(move);
         moveHistory.remove(moveHistory.size() - 1);
     }
 

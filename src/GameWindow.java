@@ -1,4 +1,3 @@
-import org.apache.batik.transcoder.TranscoderException;
 import org.apache.batik.transcoder.TranscoderInput;
 import org.apache.batik.transcoder.image.PNGTranscoder;
 
@@ -8,9 +7,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
-import java.io.File;
 import java.io.InputStream;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,9 +37,9 @@ public class GameWindow extends JFrame implements KeyListener {
     @Override
     public void keyPressed(KeyEvent e) {
         if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_Z && game.moveHistory.size() > 0) {
-            FastMove undone = game.moveHistory.get(game.moveHistory.size() - 1);
+            Move undone = game.moveHistory.get(game.moveHistory.size() - 1);
             gameView.options.clear();
-            gameView.selectedSquare = FastBoard.EMPTY;
+            gameView.selectedSquare = Board.EMPTY;
             gameView.highlightedSquares.clear();
             gameView.assistSquares.clear();
             game.unmakeMove(undone);
@@ -86,7 +83,7 @@ public class GameWindow extends JFrame implements KeyListener {
         }
     }
 
-    public void playSound(FastMove move) {
+    public void playSound(Move move) {
         if (move.isCapture()) {
             playSound("sounds/Capture.wav");
         } else {
@@ -118,7 +115,7 @@ class GameView extends JPanel implements ActionListener {
                     if (!(Main.agent1 != null && Main.agent1.color == game.getActiveColor()) && !(Main.agent2 != null && Main.agent2.color == game.getActiveColor())) {
                         selectedSquare = clicked;
                         options.clear();
-                        for (FastMove move : game.board.moves) {
+                        for (Move move : game.board.moves) {
                             if (move.start == selectedSquare) {
                                 options.add(move);
                             }
@@ -169,7 +166,7 @@ class GameView extends JPanel implements ActionListener {
     Map<String, BufferedImage> cachedIcons;
     ArrayList<Integer> highlightedSquares;
     ArrayList<Integer> assistSquares;
-    ArrayList<FastMove> options;
+    ArrayList<Move> options;
     int margins, boardWidth, squareWidth, smallOff;
 
     public GameView(Game game) {
@@ -194,9 +191,9 @@ class GameView extends JPanel implements ActionListener {
     public void handleMove(int clicked, int x, int y) {
         if (selectedSquare != -1 && selectedSquare != clicked && game.board.board[selectedSquare] != -1) {
             int selectedPromotion;
-            for (FastMove move : options) {
+            for (Move move : options) {
                 if (clicked == move.end) {
-                    if (move.type == FastMove.PROMOTION) {
+                    if (move.type == Move.PROMOTION) {
                         selectedPromotion = getSelectedPromotion(clicked, x, y);
                         if (selectedPromotion == move.promoteTo) {
                             makeMove(move);
@@ -211,7 +208,7 @@ class GameView extends JPanel implements ActionListener {
         }
     }
 
-    public void makeMove(FastMove move) {
+    public void makeMove(Move move) {
         selectedSquare = -1;
         options.clear();
         Main.makeMove("HUMAN", game, move);
@@ -387,16 +384,16 @@ class GameView extends JPanel implements ActionListener {
             int piece = game.board.board[selectedSquare];
             if (piece != -1) {
                 if (options.size() == 0) {
-                    for (FastMove move : game.board.moves) {
+                    for (Move move : game.board.moves) {
                         if (move.start == selectedSquare) {
                             options.add(move);
                         }
                     }
                 }
-                for (FastMove move : options) {
+                for (Move move : options) {
                     int row = move.end / 8;
                     int col = move.end - row * 8;
-                    if (move.type == FastMove.PROMOTION) {
+                    if (move.type == Move.PROMOTION) {
                         String color = Piece.getColor(move.actor) == Piece.WHITE ? "w" : "b";
                         String fileName = "icons/promote" + color + ".svg";
                         g.drawImage(cachedIcons.get(fileName), margins + (col * squareWidth), margins + (row * squareWidth), this.getParent());

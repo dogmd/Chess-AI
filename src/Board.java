@@ -1,7 +1,6 @@
 import java.util.ArrayList;
-import java.util.List;
 
-public class FastBoard {
+public class Board {
     int[] board; // stores the int value of the piece at the index
     int[][] pieces; // stores index of pieces of each colors
     int[] pieceCounts; // stores the number of pieces of each color
@@ -10,7 +9,7 @@ public class FastBoard {
     boolean[] pawnThreats; // stores if pawn threatening square
     int threatCount;
     boolean[] hasMoved; // stores if any changes made at square
-    ArrayList<FastMove> moves;
+    ArrayList<Move> moves;
     boolean multiCheck, singleCheck;
     boolean[] checkPath; // stores if square is part of check path
     int activeColor, enPassantable, kingInd;
@@ -18,7 +17,7 @@ public class FastBoard {
 
     static final int EMPTY = -1;
 
-    public FastBoard() {
+    public Board() {
         board = new int[64];
         pieces = new int[2][16];
         pieceCounts = new int[2];
@@ -31,7 +30,7 @@ public class FastBoard {
         enPassantable = EMPTY;
     }
 
-    public FastBoard(String fen, Game game) {
+    public Board(String fen, Game game) {
         this();
         this.game = game;
         int index = 0;
@@ -90,11 +89,11 @@ public class FastBoard {
         updateInfo();
     }
 
-    public FastBoard(FastBoard from) {
+    public Board(Board from) {
         this();
         moves = new ArrayList<>(from.moves.size());
-        for (FastMove move : from.moves) {
-            moves.add(new FastMove(move));
+        for (Move move : from.moves) {
+            moves.add(new Move(move));
         }
         this.threatCount = from.threatCount;
         this.game = from.game;
@@ -222,8 +221,8 @@ public class FastBoard {
         singleCheck = false;
 
         if (kingInd != EMPTY) {
-            for (int offInd = 0; offInd < FastMoveGenerator.ALL_OFFSETS.length; offInd++) {
-                int offset = FastMoveGenerator.ALL_OFFSETS[offInd];
+            for (int offInd = 0; offInd < MoveGenerator.ALL_OFFSETS.length; offInd++) {
+                int offset = MoveGenerator.ALL_OFFSETS[offInd];
                 int curr = kingInd + offset;
                 int offCount = 1;
                 int pinning = EMPTY;
@@ -273,8 +272,8 @@ public class FastBoard {
         threatening = new boolean[64];
         pawnThreats = new boolean[64];
         threatCount = 0;
-        ArrayList<FastMove> threats = new FastMoveGenerator().generateThreats(this);
-        for (FastMove threat : threats) {
+        ArrayList<Move> threats = new MoveGenerator().generateThreats(this);
+        for (Move threat : threats) {
             if (!threatening[threat.end]) {
                 threatening[threat.end] = true;
                 threatCount++;
@@ -323,10 +322,10 @@ public class FastBoard {
         kingInd = getKingInd(activeColor);
         updatePinningAndCheck();
         updateThreatening();
-        moves = new FastMoveGenerator().generateMoves(this);
+        moves = new MoveGenerator().generateMoves(this);
     }
 
-    public void makeMove(FastMove move) {
+    public void makeMove(Move move) {
         // handle en passant
         enPassantable = EMPTY;
         if (Piece.getType(move.actor) == Piece.PAWN && !hasMoved[move.start] && Math.abs(move.end - move.start) == 16) {
@@ -336,13 +335,13 @@ public class FastBoard {
         hasMoved[move.start] = true;
         movePiece(move.start, move.end);
 
-        if (move.type == FastMove.CASTLE) {
+        if (move.type == Move.CASTLE) {
             // if a castle, captured represents index of rook
             int offset = move.start - move.end > 0 ? 1 : -1;
             movePiece(move.captured, move.end + offset);
-        } else if (move.type == FastMove.PROMOTION) {
+        } else if (move.type == Move.PROMOTION) {
             board[move.end] = move.promoteTo;
-        } else if (move.type == FastMove.EN_PASSANT) {
+        } else if (move.type == Move.EN_PASSANT) {
             int row = move.start / 8;
             int col = move.end % 8;
             removePiece(row * 8 + col);
@@ -352,11 +351,11 @@ public class FastBoard {
         updateInfo();
     }
 
-    public void unmakeMove(FastMove move) {
+    public void unmakeMove(Move move) {
         movePiece(move.end, move.start);
 
         if (game.moveHistory.size() > 1) {
-            FastMove lastMove = game.moveHistory.get(game.moveHistory.size() - 2);
+            Move lastMove = game.moveHistory.get(game.moveHistory.size() - 2);
             if (Piece.getType(lastMove.actor) == Piece.PAWN && lastMove.firstMove && Math.abs(lastMove.end - lastMove.start) == 16) {
                 enPassantable = lastMove.end + (Piece.getColor(lastMove.actor) == Piece.WHITE ? 8 : -8);
             }
@@ -366,20 +365,20 @@ public class FastBoard {
             hasMoved[move.start] = false;
         }
 
-        if (move.type == FastMove.EN_PASSANT) {
+        if (move.type == Move.EN_PASSANT) {
             int row = move.start / 8;
             int col = move.end % 8;
             addPiece(move.captured, row * 8 + col);
             enPassantable = move.end;
-        } else if (move.type == FastMove.CASTLE) {
+        } else if (move.type == Move.CASTLE) {
             // if a castle, captured represents original index of rook
             int offset = move.start - move.end > 0 ? 1 : -1;
             movePiece(move.end + offset, move.captured);
-        } else if (move.type == FastMove.PROMOTION) {
+        } else if (move.type == Move.PROMOTION) {
             board[move.start] = move.actor;
         }
 
-        if (move.type != FastMove.EN_PASSANT && move.type != FastMove.CASTLE) {
+        if (move.type != Move.EN_PASSANT && move.type != Move.CASTLE) {
             addPiece(move.captured, move.end);
         }
 
@@ -438,17 +437,17 @@ public class FastBoard {
         }
         fen.append(" ");
         fen.append(activeColor == Piece.WHITE ? "w " : "b ");
-        if (FastMoveGenerator.canCastle(kingInd, -2, this) != -1) {
+        if (MoveGenerator.canCastle(kingInd, -2, this) != -1) {
             fen.append(activeColor == Piece.WHITE ? "Q" : "q");
         }
-        if (FastMoveGenerator.canCastle(getKingInd(Piece.getOpposite(activeColor)), 2, this) != -1) {
+        if (MoveGenerator.canCastle(getKingInd(Piece.getOpposite(activeColor)), 2, this) != -1) {
             fen.append(activeColor == Piece.BLACK ? "K" : "k");
         }
         fen.append(" ");
         if (enPassantable == EMPTY) {
             fen.append("-");
         } else {
-            fen.append(FastBoard.coorConvert(enPassantable));
+            fen.append(Board.coorConvert(enPassantable));
         }
         return fen.toString();
     }

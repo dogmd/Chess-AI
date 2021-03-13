@@ -9,7 +9,7 @@ public class Main {
     static String agent1Name = "WHITE", agent2Name = "BLACK";
     static Agent agent1 = null, agent2 = null;
     static Agent evaluator;
-    static FastMove suggestedMove;
+    static Move suggestedMove;
     static String eval = "Eval: 0.00";
     static boolean displayEnabled = true;
     static boolean soundsEnabled = true;
@@ -121,10 +121,10 @@ public class Main {
         return true;
     }
 
-    public static void makeMove(String source, Game game, FastMove move) {
+    public static void makeMove(String source, Game game, Move move) {
         if (Piece.getColor(move.actor) == game.board.activeColor) {
             if (Main.gameWindow != null) {
-                Main.gameWindow.gameView.selectedSquare = FastBoard.EMPTY;
+                Main.gameWindow.gameView.selectedSquare = Board.EMPTY;
             }
             System.out.println(source + " plays " + move.toString().replace("\n", ""));
             GameState oldState = game.gameState;
