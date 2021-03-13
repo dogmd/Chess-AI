@@ -86,7 +86,7 @@ public class GameWindow extends JFrame implements KeyListener {
         }
     }
 
-    public void playSound(Move move) {
+    public void playSound(FastMove move) {
         if (move.isCapture()) {
             playSound("sounds/Capture.wav");
         } else {
@@ -196,7 +196,7 @@ class GameView extends JPanel implements ActionListener {
             int selectedPromotion;
             for (FastMove move : options) {
                 if (clicked == move.end) {
-                    if (move.type == Move.PROMOTION) {
+                    if (move.type == FastMove.PROMOTION) {
                         selectedPromotion = getSelectedPromotion(clicked, x, y);
                         if (selectedPromotion == move.promoteTo) {
                             makeMove(move);
@@ -254,10 +254,10 @@ class GameView extends JPanel implements ActionListener {
     public void generateIcons() {
         cachedIcons.clear();
         squareWidth = squareWidth <= 0 ? 1 : squareWidth;
-        for (int i = 0; i <= 1; i++) {
-            for (PieceType p : PieceType.values()) {
-                Piece piece = new Piece(p, i);
-                String fileName = "icons/" + piece.toString().toLowerCase() + (piece.isWhite() ? "w" : "b") + ".svg";
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 6; j++) {
+                int piece = i << 3 | j;
+                String fileName = "icons/" + Piece.getFenChar(piece).toLowerCase() + (Piece.getColor(piece) == Piece.WHITE ? "w" : "b") + ".svg";
                 if (width != 0 && height != 0) {
                     cachedIcons.put(fileName, loadImage(fileName, squareWidth, squareWidth));
                 }
@@ -302,7 +302,7 @@ class GameView extends JPanel implements ActionListener {
             for (int j = 0; j < 8; j++) {
                 int ind = i * 8 + j;
                 Graphics2D g2 = (Graphics2D) g;
-                g2.setStroke(new BasicStroke(2));
+                g2.setStroke(new BasicStroke(smallOff / 5f));
                 g.setColor(Color.BLACK);
                 g.drawRect(margins + (j * squareWidth), margins + (i * squareWidth), squareWidth, squareWidth);
                 if ((i + j) % 2 == 0) { // square is light
@@ -396,7 +396,7 @@ class GameView extends JPanel implements ActionListener {
                 for (FastMove move : options) {
                     int row = move.end / 8;
                     int col = move.end - row * 8;
-                    if (move.type == Move.PROMOTION) {
+                    if (move.type == FastMove.PROMOTION) {
                         String color = Piece.getColor(move.actor) == Piece.WHITE ? "w" : "b";
                         String fileName = "icons/promote" + color + ".svg";
                         g.drawImage(cachedIcons.get(fileName), margins + (col * squareWidth), margins + (row * squareWidth), this.getParent());
@@ -445,6 +445,15 @@ class GameView extends JPanel implements ActionListener {
         int lineWidth = (int)(width * (1 - BOARD_SCALE)) - smallOff;
         g.setFont(robotoBold.deriveFont(lineWidth * 0.1f));
         g.drawString(Main.eval, margins + smallOff + boardWidth, margins + boardWidth - smallOff);
+        long evalCount = -1;
+        if (Main.agent1 != null && Main.agent1.color == game.getActiveColor() && Main.agent1 instanceof ScottAgent) {
+            evalCount = ((ScottAgent)Main.agent1).evalCount;
+        } else if (Main.agent2 != null && Main.agent2.color == game.getActiveColor() && Main.agent2 instanceof ScottAgent) {
+            evalCount = ((ScottAgent)Main.agent2).evalCount;
+        }
+        if (evalCount != -1) {
+            g.drawString("Eval Count: " + evalCount, margins + smallOff + boardWidth, margins + boardWidth - g.getFont().getSize() - 2 * smallOff);
+        }
     }
 
     public void dragSelected(Graphics g) {

@@ -1,82 +1,16 @@
 import java.util.ArrayList;
 
 public class Piece {
-    Square square;
-    PieceType type;
-    int color;
-    boolean hasMoved;
-    ArrayList<Square> threatening;
-
     static final int WHITE = 0;
     static final int BLACK = 1;
 
     static final int PAWN = 0, KNIGHT = 1, BISHOP = 2, ROOK = 3, QUEEN = 4, KING = 5;
-
-    public Piece() {
-        this.type = PieceType.PAWN;
-        this.color = WHITE;
-        threatening = new ArrayList<>();
-    }
-
-    public Piece(Piece p, Square sq) {
-        this(p);
-        sq.setPiece(this);
-    }
-
-    public Piece(Piece p) {
-        this.type = p.type;
-        this.color = p.color;
-        this.hasMoved = p.hasMoved;
-        this.square = p.square;
-        threatening = new ArrayList<>();
-    }
-
-    public Piece(PieceType type, int color) {
-        this.type = type;
-        this.color = color;
-        threatening = new ArrayList<>();
-    }
-
-    public Piece(Square square, PieceType type, int color) {
-        square.setPiece(this);
-        this.type = type;
-        this.color = color;
-        threatening = new ArrayList<>();
-    }
-
-    public Square getSquare() {
-        return square;
-    }
-
-    public static boolean isWhite(Piece p) {
-        return p.color == 0;
-    }
-
-    public boolean isWhite() {
-        return isWhite(this);
-    }
 
     public static int getOpposite(int color) {
         if (color == -1) {
             return -1;
         }
         return color == WHITE ? BLACK : WHITE;
-    }
-
-    public char getChar() {
-        char piece = 'a';
-        switch(type) {
-            case PAWN: piece = 'P'; break;
-            case ROOK: piece = 'R'; break;
-            case KNIGHT: piece = 'N'; break;
-            case BISHOP: piece = 'B'; break;
-            case QUEEN: piece = 'Q'; break;
-            case KING: piece = 'K'; break;
-        }
-        if (color == BLACK) {
-            piece = Character.toLowerCase(piece);
-        }
-        return piece;
     }
 
     public static int getType(int piece) {
@@ -123,18 +57,6 @@ public class Piece {
             return val;
         }
         return getChar(piece);
-    }
-
-    public String toString() {
-        String piece = "" + getChar();
-        if (square != null) {
-            piece += square.toString();
-        }
-        return piece;
-    }
-
-    public int toInt() {
-        return (color << 3) | type.ordinal();
     }
 
     // tables from https://www.chessprogramming.org/Simplified_Evaluation_Function#Piece-Square_Tables
@@ -215,14 +137,6 @@ public class Piece {
             -50,-30,-30,-30,-30,-30,-30,-50
     };
 
-    public int getWeight() {
-        return getWeight(false);
-    }
-
-    public int getWeight(boolean isEndgame) {
-        return getWeight(toInt(), square.row, square.col, isEndgame);
-    }
-
     public static int getWeight(int piece, int row, int col, boolean isEndgame) {
         int type = Piece.getType(piece);
         int color = Piece.getColor(piece);
@@ -237,21 +151,6 @@ public class Piece {
             case QUEEN: return weight + QUEEN_W[index];
             case KING: return weight + (isEndgame ? KING_WE[index] : KING_WM[index]);
             default: return -1;
-        }
-    }
-
-    public static int getWeight(PieceType type) {
-        return getWeight(type.ordinal());
-    }
-
-    public static PieceType getPieceType(int type) {
-        switch(type) {
-            case PAWN: return PieceType.PAWN;
-            case KNIGHT: return PieceType.KNIGHT;
-            case BISHOP: return PieceType.BISHOP;
-            case ROOK: return PieceType.ROOK;
-            case QUEEN: return PieceType.QUEEN;
-            default: return PieceType.KING;
         }
     }
 

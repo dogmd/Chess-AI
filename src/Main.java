@@ -18,6 +18,9 @@ public class Main {
     static int runCount = 1;
 
     public static void main(String[] args) {
+        if (args.length == 0) {
+            args = new String[]{"-agent2", "ScottAgent", "-name2", "3,true"};
+        }
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             if (arg.equals("-time")) {
@@ -127,9 +130,6 @@ public class Main {
             GameState oldState = game.gameState;
             game.makeMove(move);
             new Thread(new EvalUpdater(new ScottAgent("3,true", game, game.getActiveColor()), game)).start();
-//            Main.eval = "Eval: ...";
-//            double eval = evaluator.getEval(game) * (game.board.activeColor == Piece.WHITE ? 1 : -1);
-//            Main.eval = String.format("Eval: %.2f", eval);
             System.out.println(game.getMaterialScore() + "\n");
             if (Main.displayEnabled) {
                 if (oldState != game.gameState) {

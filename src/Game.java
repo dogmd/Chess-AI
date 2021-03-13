@@ -10,8 +10,7 @@ public class Game {
     public Game(String fen, String timeFormat) {
         moveHistory = new ArrayList<>();
         try {
-            Board tempBoard = new Board(fen);
-            board = new FastBoard(tempBoard, this);
+            board = new FastBoard(fen, this);
             String[] fields = fen.split(" ");
             halfMoves = Integer.parseInt(fields[4]);
             fullMoves = Integer.parseInt(fields[5]);
@@ -32,7 +31,6 @@ public class Game {
         blackAdd = Integer.parseInt(time[1]) * 1000;
         turnStart = System.currentTimeMillis();
         gameState = GameState.ACTIVE;
-        board.updateInfo();
         checkSetEndState();
     }
 

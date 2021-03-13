@@ -1,6 +1,6 @@
 import javax.swing.*;
 
-public class FastMove extends Move implements Comparable<Move> {
+public class FastMove implements Comparable<FastMove> {
     int start, end;
     int actor;
     int captured;
@@ -8,6 +8,10 @@ public class FastMove extends Move implements Comparable<Move> {
     int promoteTo;
     boolean firstMove;
     double score;
+
+    public static final int CASTLE = 1;
+    public static final int PROMOTION = 2;
+    public static final int EN_PASSANT = 3;
 
     public FastMove(int actor, int captured, int start, int end, FastBoard board) {
         this.actor = actor;

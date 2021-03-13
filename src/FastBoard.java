@@ -1,7 +1,7 @@
 import java.util.ArrayList;
 import java.util.List;
 
-public class FastBoard extends Board {
+public class FastBoard {
     int[] board; // stores the int value of the piece at the index
     int[][] pieces; // stores index of pieces of each colors
     int[] pieceCounts; // stores the number of pieces of each color
@@ -29,6 +29,65 @@ public class FastBoard extends Board {
         checkPath = new boolean[64];
         moves = new ArrayList<>();
         enPassantable = EMPTY;
+    }
+
+    public FastBoard(String fen, Game game) {
+        this();
+        this.game = game;
+        int index = 0;
+        String[] fields = fen.split(" ");
+        activeColor = fields[1].equals("w") ? Piece.WHITE : Piece.BLACK;
+        for (int i = 0; i < fields[0].length(); i++) {
+            char c = fields[0].charAt(i);
+            int color = Character.isLowerCase(c) ? Piece.BLACK : Piece.WHITE;
+            c = Character.toUpperCase(c);
+            int type = -1;
+            switch (c) {
+                case 'P':
+                    type = Piece.PAWN;
+                    break;
+                case 'N':
+                    type = Piece.KNIGHT;
+                    break;
+                case 'B':
+                    type = Piece.BISHOP;
+                    break;
+                case 'R':
+                    type = Piece.ROOK;
+                    break;
+                case 'Q':
+                    type = Piece.QUEEN;
+                    break;
+                case 'K':
+                    type = Piece.KING;
+                    break;
+                case '/':
+                    index--;
+                    break;
+                default:
+                    int length = Integer.parseInt("" + c);
+                    for (int j = 0; j < length; j++) {
+                        board[index + j] = EMPTY;
+                    }
+                    index += length - 1;
+
+                    break;
+            }
+            addPiece(color << 3 | type, index);
+            index++;
+        }
+
+        activeColor = fields[1].equals("w") ? Piece.WHITE : Piece.BLACK;
+
+        // castling
+        hasMoved[0] = !fields[2].contains("q");
+        hasMoved[7] = !fields[2].contains("k");
+        hasMoved[56] = !fields[2].contains("Q");
+        hasMoved[63] = !fields[2].contains("K");
+
+        enPassantable = coorConvert(fields[3]);
+
+        updateInfo();
     }
 
     public FastBoard(FastBoard from) {
@@ -60,56 +119,6 @@ public class FastBoard extends Board {
             this.hasMoved[i] = from.hasMoved[i];
             this.checkPath[i] = from.checkPath[i];
         }
-    }
-
-    public FastBoard(Board from, Game game) {
-        this();
-        this.game = game;
-        this.multiCheck = from.multiCheck;
-        this.activeColor = from.activeColor;
-
-        // init hasMoved
-        for (int i = 0; i < 64; i++) {
-            hasMoved[i] = true;
-        }
-
-        // copy board
-        for (int i = 0; i < 8; i++) {
-            for (int j = 0; j < 8; j++) {
-                Square sq = from.board[i][j];
-                int index = sq.getIndex();
-                if (sq.isOccupied()) {
-                    board[index] = sq.piece.toInt();
-                    hasMoved[index] = sq.piece.hasMoved;
-                    if (sq.piece.type == PieceType.PAWN && ((Pawn)sq.piece).enPassantable) {
-                        enPassantable = index;
-                    }
-                    addPiece(sq.piece.toInt(), index);
-                } else {
-                    board[index] = EMPTY;
-                }
-            }
-        }
-
-        // copy pins
-        for (Pin p : from.pins) {
-            int offset = p.path.get(0).getIndex();
-            for (Square sq : p.path) {
-                pins[sq.getIndex()] = true;
-            }
-        }
-
-        // copy threats
-        for (Square sq : from.threatening) {
-            threatening[sq.getIndex()] = true;
-        }
-
-        // copy check path
-        for (Square sq : from.checkPath) {
-            checkPath[sq.getIndex()] = true;
-        }
-
-        updateInfo();
     }
 
     public int getMaterialScore() {
@@ -327,13 +336,13 @@ public class FastBoard extends Board {
         hasMoved[move.start] = true;
         movePiece(move.start, move.end);
 
-        if (move.type == Move.CASTLE) {
+        if (move.type == FastMove.CASTLE) {
             // if a castle, captured represents index of rook
             int offset = move.start - move.end > 0 ? 1 : -1;
             movePiece(move.captured, move.end + offset);
-        } else if (move.type == Move.PROMOTION) {
+        } else if (move.type == FastMove.PROMOTION) {
             board[move.end] = move.promoteTo;
-        } else if (move.type == Move.EN_PASSANT) {
+        } else if (move.type == FastMove.EN_PASSANT) {
             int row = move.start / 8;
             int col = move.end % 8;
             removePiece(row * 8 + col);
@@ -357,20 +366,20 @@ public class FastBoard extends Board {
             hasMoved[move.start] = false;
         }
 
-        if (move.type == Move.EN_PASSANT) {
+        if (move.type == FastMove.EN_PASSANT) {
             int row = move.start / 8;
             int col = move.end % 8;
             addPiece(move.captured, row * 8 + col);
             enPassantable = move.end;
-        } else if (move.type == Move.CASTLE) {
+        } else if (move.type == FastMove.CASTLE) {
             // if a castle, captured represents original index of rook
             int offset = move.start - move.end > 0 ? 1 : -1;
             movePiece(move.end + offset, move.captured);
-        } else if (move.type == Move.PROMOTION) {
+        } else if (move.type == FastMove.PROMOTION) {
             board[move.start] = move.actor;
         }
 
-        if (move.type != Move.EN_PASSANT && move.type != Move.CASTLE) {
+        if (move.type != FastMove.EN_PASSANT && move.type != FastMove.CASTLE) {
             addPiece(move.captured, move.end);
         }
 
@@ -382,6 +391,17 @@ public class FastBoard extends Board {
         int col = index % 8;
         int row = index / 8;
         return "" + (char)(col + 'a') + (8 - row);
+    }
+
+    public static int coorConvert(String sq) {
+        int index = -1;
+        sq = sq.toLowerCase();
+        if (sq.length() > 2) {
+            int col = sq.charAt(0) - 'a';
+            int row = 8 - Integer.parseInt(sq.substring(1));
+            index = row * 8 + col;
+        }
+        return index;
     }
 
     public int getKingInd(int color) {

@@ -90,7 +90,7 @@ public class FastMoveGenerator {
                 int canCastle = canCastle(start, direction, board);
                 if (!onlyThreats && canCastle != -1) {
                     FastMove move = new FastMove(board.board[start], canCastle, start, start + direction, board);
-                    move.type = Move.CASTLE;
+                    move.type = FastMove.CASTLE;
                     moves.add(move);
                 }
             }
@@ -256,7 +256,7 @@ public class FastMoveGenerator {
                     if (!enPassantRevealsCheck(start, currInd)) {
                         int ind = (start / 8) * 8 + currInd % 8;
                         FastMove move = new FastMove(board.board[start], board.board[ind], start, currInd, board);
-                        move.type = Move.EN_PASSANT;
+                        move.type = FastMove.EN_PASSANT;
                         moves.add(move);
                     }
                 }
@@ -303,7 +303,7 @@ public class FastMoveGenerator {
         for (int type : PROMOTE_OPTIONS) {
             FastMove newMove = new FastMove(move.actor, move.captured, move.start, move.end, board);
             newMove.promoteTo = color << 3 | type;
-            newMove.type = Move.PROMOTION;
+            newMove.type = FastMove.PROMOTION;
             moves.add(newMove);
         }
     }

@@ -17,8 +17,8 @@ public class ScottAgent extends Agent {
             String[] fields = name.split(",");
             this.depth = Integer.parseInt(fields[0]);
             this.searchCaptures = Boolean.parseBoolean(fields[1]);
-        } catch (NumberFormatException e) {
-            this.depth = 4;
+        } catch (Exception e) {
+            this.depth = 3;
             this.searchCaptures = true;
         }
     }
@@ -36,7 +36,7 @@ public class ScottAgent extends Agent {
             int capturedWeight = Piece.getWeight(move.captured, endRow, endCol, isEndgame);
             total += 10 * capturedWeight - actorWeight;
         }
-        if (move.type == Move.PROMOTION) {
+        if (move.type == FastMove.PROMOTION) {
             total += 2 * Piece.getWeight(move.promoteTo, endRow, endCol, isEndgame);
         }
         if (g.board.pawnThreats[move.end]) {
@@ -63,8 +63,8 @@ public class ScottAgent extends Agent {
 
     public double getScore(Game g) {
         double total = 0;
+        evalCount++;
         total += g.getMaterialScore() * (g.getActiveColor() == Piece.WHITE ? 1 : -1);
-        //total += g.getMobilityDiff() * (g.getActiveColor() == color ? 1 : -1);
         if (g.isEndgame()) {
             total += kingTrapWeight(g);
         }
@@ -109,20 +109,19 @@ public class ScottAgent extends Agent {
     }
 
     public double search(int depth, double alpha, double beta) {
-        if (depth == 0) {
-            if (searchCaptures) {
-                return searchCaptures(alpha, beta);
-            } else {
-                return getScore(copy);
-            }
-        }
-
         ArrayList<FastMove> moves = new ArrayList<>(copy.board.moves);
         if (moves.size() == 0) {
             if (copy.board.isChecked()) {
                 return -999999 + copy.fullMoves;
             }
             return 0;
+        }
+        if (depth == 0) {
+            if (searchCaptures) {
+                return searchCaptures(alpha, beta);
+            } else {
+                return getScore(copy);
+            }
         }
 
         for (FastMove move : moves) {
@@ -158,6 +157,7 @@ public class ScottAgent extends Agent {
     }
 
     public FastMove getMove(Game game, int color) {
+        this.evalCount = 0;
         this.copy = new Game(game);
         this.game = game;
         this.bestScore = -999999;
