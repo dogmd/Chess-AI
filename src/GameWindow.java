@@ -221,7 +221,7 @@ class GameView extends JPanel implements ActionListener {
         int topLeftX = margins + (int)(sqWidth * col);
         int topLeftY = margins + (int)(sqWidth * row);
         int color = game.board.activeColor;
-        int type = -1;
+        int type;
         if (x < topLeftX + sqWidth / 2 && y < topLeftY + sqWidth / 2) {
             type = Piece.KNIGHT;
         } else if (x >= topLeftX + sqWidth / 2 && y >= topLeftY + sqWidth / 2) {

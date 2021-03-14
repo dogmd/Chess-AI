@@ -1,5 +1,6 @@
 import java.lang.reflect.Constructor;
 import java.util.ConcurrentModificationException;
+import java.util.Stack;
 
 public class Main {
     static GameWindow gameWindow;
@@ -8,19 +9,17 @@ public class Main {
     static String agent1Class = null, agent2Class = null;
     static String agent1Name = "WHITE", agent2Name = "BLACK";
     static Agent agent1 = null, agent2 = null;
-    static Agent evaluator;
     static Move suggestedMove;
     static String eval = "Eval: 0.00";
     static boolean displayEnabled = true;
     static boolean soundsEnabled = true;
     static boolean assistEnabled = false;
+    static boolean evalEnabled = true;
     static long delayMillis = 0;
     static int runCount = 1;
+    static Stack<Long> keyHist = new Stack<>();
 
     public static void main(String[] args) {
-        if (args.length == 0) {
-            args = new String[]{"-agent2", "ScottAgent", "-name2", "3,true"};
-        }
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             if (arg.equals("-time")) {
@@ -56,11 +55,13 @@ public class Main {
             } else if (arg.equals("-assist")) {
                 assistEnabled = Boolean.parseBoolean(args[i + 1]);
                 i++;
+            } else if (arg.equals("-eval")) {
+                evalEnabled = Boolean.parseBoolean(args[i + 1]);
+                i++;
             }
         }
         PrecomputedMoveData.calculate();
         Game game = new Game(board, time);
-        evaluator = new ScottAgent("3,true", game, Piece.WHITE);
         System.out.println(game);
         gameWindow = new GameWindow(game);
 
@@ -71,10 +72,6 @@ public class Main {
         if (agent2Class != null) {
             agent2 = getAgent(agent2Name, agent2Class, game);
             agent2.color = Piece.BLACK;
-        }
-
-        if (agent1 != null) {
-            new Thread(new EvalUpdater(new ScottAgent("3,true", game, game.getActiveColor()), game)).start();
         }
 
         int numGames = 0;
@@ -128,8 +125,12 @@ public class Main {
             }
             System.out.println(source + " plays " + move.toString().replace("\n", ""));
             GameState oldState = game.gameState;
+            keyHist.push(game.board.zobristKey);
             game.makeMove(move);
-            new Thread(new EvalUpdater(new ScottAgent("3,true", game, game.getActiveColor()), game)).start();
+            System.out.println(game.toFen());
+            if (evalEnabled) {
+                new Thread(new EvalUpdater(new ScottAgent("evaluator", game, game.getActiveColor()), game)).start();
+            }
             System.out.println(game.getMaterialScore() + "\n");
             if (Main.displayEnabled) {
                 if (oldState != game.gameState) {

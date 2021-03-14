@@ -14,6 +14,7 @@ public class Board {
     boolean[] checkPath; // stores if square is part of check path
     int activeColor, enPassantable, kingInd;
     Game game;
+    long zobristKey;
 
     static final int EMPTY = -1;
 
@@ -86,6 +87,7 @@ public class Board {
 
         enPassantable = coorConvert(fields[3]);
 
+        zobristKey = Zobrist.calcKey(this);
         updateInfo();
     }
 
@@ -102,6 +104,7 @@ public class Board {
         this.singleCheck = from.singleCheck;
         this.activeColor = from.activeColor;
         this.kingInd = from.kingInd;
+        this.zobristKey = from.zobristKey;
 
         for (int i = 0; i < 2; i++) {
             pieceCounts[i] = from.pieceCounts[i];
@@ -157,13 +160,24 @@ public class Board {
     }
 
     public void movePiece(int start, int end) {
+        if (board[start] != EMPTY) {
+            int color = Piece.getColor(board[start]);
+            int type = Piece.getType(board[start]);
+            zobristKey ^= Zobrist.piecesArr[type][color][start]; // unset start
+        }
         if (board[end] != EMPTY) {
+            int type = Piece.getType(board[end]);
+            int color = Piece.getColor(board[end]);
+            zobristKey ^= Zobrist.piecesArr[type][color][end]; // unset old end
             removePiece(end);
         }
+
         board[end] = board[start];
         board[start] = EMPTY;
         if (board[end] != EMPTY) {
             int color = Piece.getColor(board[end]);
+            int type = Piece.getType(board[end]);
+            zobristKey ^= Zobrist.piecesArr[type][color][end]; // set end
             for (int i = 0; i < pieceCounts[color]; i++) {
                 if (pieces[color][i] == start) {
                     pieces[color][i] = end;
@@ -326,10 +340,17 @@ public class Board {
     }
 
     public void makeMove(Move move) {
+        int oldCastleRights = getCastleRights();
         // handle en passant
-        enPassantable = EMPTY;
+        if (enPassantable != EMPTY) {
+            int enCol = enPassantable % 8 + 1;
+            zobristKey ^= Zobrist.enPassantFile[enCol]; // unset old en passant
+            enPassantable = EMPTY;
+        }
         if (Piece.getType(move.actor) == Piece.PAWN && !hasMoved[move.start] && Math.abs(move.end - move.start) == 16) {
             enPassantable = move.end + (Piece.getColor(move.actor) == Piece.WHITE ? 8 : -8);
+            int enCol = enPassantable % 8 + 1;
+            zobristKey ^= Zobrist.enPassantFile[enCol]; // set new en passant
         }
 
         hasMoved[move.start] = true;
@@ -340,24 +361,47 @@ public class Board {
             int offset = move.start - move.end > 0 ? 1 : -1;
             movePiece(move.captured, move.end + offset);
         } else if (move.type == Move.PROMOTION) {
+            int color = Piece.getColor(move.actor);
+            zobristKey ^= Zobrist.piecesArr[Piece.PAWN][color][move.end]; // unset pawn
+            zobristKey ^= Zobrist.piecesArr[Piece.getType(move.promoteTo)][color][move.end]; // set new type
             board[move.end] = move.promoteTo;
         } else if (move.type == Move.EN_PASSANT) {
             int row = move.start / 8;
             int col = move.end % 8;
+            zobristKey ^= Zobrist.piecesArr[Piece.PAWN][Piece.getColor(move.captured)][row * 8 + col];
             removePiece(row * 8 + col);
         }
 
         activeColor = Piece.getOpposite(activeColor);
         updateInfo();
+
+        int newCastleRights = getCastleRights();
+        if (newCastleRights != oldCastleRights) {
+            zobristKey ^= Zobrist.castlingRights[oldCastleRights]; // unset old castling rights
+            zobristKey ^= Zobrist.castlingRights[newCastleRights]; // set new castling rights
+        }
+        zobristKey ^= Zobrist.activeColor;
+        game.repeatHistory.push(zobristKey);
     }
 
     public void unmakeMove(Move move) {
-        movePiece(move.end, move.start);
+        int oldCastleRights = getCastleRights();
+        if (move.type != Move.PROMOTION) {
+            movePiece(move.end, move.start);
+        }
+
+        if (enPassantable != EMPTY) {
+            int enCol = enPassantable % 8 + 1;
+            zobristKey ^= Zobrist.enPassantFile[enCol]; // unset old en passant
+            enPassantable = EMPTY;
+        }
 
         if (game.moveHistory.size() > 1) {
             Move lastMove = game.moveHistory.get(game.moveHistory.size() - 2);
             if (Piece.getType(lastMove.actor) == Piece.PAWN && lastMove.firstMove && Math.abs(lastMove.end - lastMove.start) == 16) {
                 enPassantable = lastMove.end + (Piece.getColor(lastMove.actor) == Piece.WHITE ? 8 : -8);
+                int enCol = enPassantable % 8 + 1;
+                zobristKey ^= Zobrist.enPassantFile[enCol]; // set new en passant
             }
         }
 
@@ -369,21 +413,39 @@ public class Board {
             int row = move.start / 8;
             int col = move.end % 8;
             addPiece(move.captured, row * 8 + col);
-            enPassantable = move.end;
+            zobristKey ^= Zobrist.piecesArr[Piece.PAWN][Piece.getColor(move.captured)][row * 8 + col];
         } else if (move.type == Move.CASTLE) {
             // if a castle, captured represents original index of rook
             int offset = move.start - move.end > 0 ? 1 : -1;
             movePiece(move.end + offset, move.captured);
         } else if (move.type == Move.PROMOTION) {
-            board[move.start] = move.actor;
+            int color = Piece.getColor(move.actor);
+            zobristKey ^= Zobrist.piecesArr[Piece.getType(move.promoteTo)][color][move.end]; // unset new type
+            zobristKey ^= Zobrist.piecesArr[Piece.PAWN][color][move.start]; // set pawn
+            removePiece(move.end);
+            addPiece(move.actor, move.start);
+            board[move.end] = EMPTY;
         }
 
         if (move.type != Move.EN_PASSANT && move.type != Move.CASTLE) {
             addPiece(move.captured, move.end);
+            if (move.captured != -1) {
+                zobristKey ^= Zobrist.piecesArr[Piece.getType(move.captured)][Piece.getColor(move.captured)][move.end]; // set captured piece
+            }
         }
 
         activeColor = Piece.getOpposite(activeColor);
         updateInfo();
+        if (game.repeatHistory.size() > 0) {
+            game.repeatHistory.pop();
+        }
+
+        int newCastleRights = getCastleRights();
+        if (newCastleRights != oldCastleRights) {
+            zobristKey ^= Zobrist.castlingRights[oldCastleRights]; // unset old castling rights
+            zobristKey ^= Zobrist.castlingRights[newCastleRights]; // set new castling rights
+        }
+        zobristKey ^= Zobrist.activeColor;
     }
 
     public static String coorConvert(int index) {
@@ -437,11 +499,22 @@ public class Board {
         }
         fen.append(" ");
         fen.append(activeColor == Piece.WHITE ? "w " : "b ");
-        if (MoveGenerator.canCastle(kingInd, -2, this) != -1) {
-            fen.append(activeColor == Piece.WHITE ? "Q" : "q");
-        }
-        if (MoveGenerator.canCastle(getKingInd(Piece.getOpposite(activeColor)), 2, this) != -1) {
-            fen.append(activeColor == Piece.BLACK ? "K" : "k");
+        int castleRights = getCastleRights();
+        if (castleRights == 0) {
+            fen.append("-");
+        } else {
+            if ((castleRights & 0b1000) != 0) {
+                fen.append("Q");
+            }
+            if ((castleRights & 0b0100) != 0) {
+                fen.append("K");
+            }
+            if ((castleRights & 0b0010) != 0) {
+                fen.append("q");
+            }
+            if ((castleRights & 0b0001) != 0) {
+                fen.append("k");
+            }
         }
         fen.append(" ");
         if (enPassantable == EMPTY) {
@@ -450,6 +523,17 @@ public class Board {
             fen.append(Board.coorConvert(enPassantable));
         }
         return fen.toString();
+    }
+
+    public int getCastleRights() {
+        int whiteInd = activeColor == Piece.WHITE ? kingInd : getKingInd(Piece.getOpposite(activeColor));
+        int blackInd = activeColor == Piece.BLACK ? kingInd : getKingInd(Piece.getOpposite(activeColor));
+        int castleRights = 0;
+        castleRights |= MoveGenerator.canCastle(whiteInd, -2, this) != -1 ? 1 << 3 : 0;
+        castleRights |= MoveGenerator.canCastle(whiteInd, 2, this) != -1 ? 1 << 2 : 0;
+        castleRights |= MoveGenerator.canCastle(blackInd, -2, this) != -1 ? 1 << 1 : 0;
+        castleRights |= MoveGenerator.canCastle(blackInd, 2, this) != -1 ? 1 : 0;
+        return castleRights;
     }
 
     public int getBasicMaterialScore(int color) {

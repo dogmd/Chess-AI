@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Stack;
 
 public class ScottAgent extends Agent {
     long evalCount;
@@ -9,6 +10,8 @@ public class ScottAgent extends Agent {
     double bestScore;
     int lastDepth;
     boolean searchCaptures;
+    MovePath bestPath;
+    MovePath root;
 
     public ScottAgent(String name, Game game, int color) {
         super(name, game, color);
@@ -68,6 +71,7 @@ public class ScottAgent extends Agent {
         if (g.isEndgame()) {
             total += kingTrapWeight(g);
         }
+
         return total;
     }
 
@@ -84,7 +88,7 @@ public class ScottAgent extends Agent {
         Collections.sort(moves);
     }
 
-    public double searchCaptures(double alpha, double beta) {
+    public double searchCaptures(double alpha, double beta, MovePath path) {
         double score = getScore(copy);
         if (score >= beta) {
             return beta;
@@ -96,7 +100,9 @@ public class ScottAgent extends Agent {
 
         for (Move move : moves) {
             copy.makeMove(move);
-            score = -searchCaptures(-beta, -alpha);
+            path.next = new MovePath(move);
+            path.zobristKey = copy.board.zobristKey;
+            score = -searchCaptures(-beta, -alpha, path.next);
             copy.unmakeMove(move);
 
             if (score >= beta) {
@@ -108,17 +114,19 @@ public class ScottAgent extends Agent {
         return alpha;
     }
 
-    public double search(int depth, double alpha, double beta) {
+    public double search(int depth, double alpha, double beta, MovePath path) {
         ArrayList<Move> moves = new ArrayList<>(copy.board.moves);
         if (moves.size() == 0) {
             if (copy.board.isChecked()) {
                 return -999999 + copy.fullMoves;
             }
             return 0;
+        } else if (depth != this.depth && game.hasBeenSeen(copy.board.zobristKey)) {
+            return 0;
         }
         if (depth == 0) {
             if (searchCaptures) {
-                return searchCaptures(alpha, beta);
+                return searchCaptures(alpha, beta, path);
             } else {
                 return getScore(copy);
             }
@@ -131,13 +139,16 @@ public class ScottAgent extends Agent {
 
         for (Move move : moves) {
             copy.makeMove(move);
-            double score = -search(depth - 1, -beta, -alpha);
+            path.next = new MovePath(move);
+            path.zobristKey = copy.board.zobristKey;
+            double score = -search(depth - 1, -beta, -alpha, path.next);
             copy.unmakeMove(move);
             if ((score > bestScore || bestMove == null) && depth == this.depth) {
                 bestScore = score;
                 bestMove = move;
+                bestPath = path.next;
             }
-            if (score >= beta) {
+            if (score > beta) {
                 return beta;
             }
             alpha = Math.max(alpha, score);
@@ -152,7 +163,7 @@ public class ScottAgent extends Agent {
         this.bestScore = -999999;
         this.bestMove = null;
         this.lastDepth = this.depth;
-        search(depth, -999999, 999999);
+        search(depth, -999999, 999999, new MovePath());
         return bestScore;
     }
 
@@ -164,8 +175,33 @@ public class ScottAgent extends Agent {
         this.bestMove = null;
         this.lastDepth = this.depth;
         long start = System.currentTimeMillis();
-        search(depth, -999999, 999999);
-        System.out.println(System.currentTimeMillis() - start + "ms");
+        root = new MovePath();
+        root.zobristKey = copy.board.zobristKey;
+        search(depth, -999999, 999999, root);
+        if (!name.equals("evaluator")) {
+            System.out.println(System.currentTimeMillis() - start + "ms\n" + bestPath + " " + bestScore);
+        }
         return bestMove;
+    }
+
+    private class MovePath {
+        MovePath next;
+        Move move;
+        long zobristKey;
+
+        public MovePath(){}
+
+        public MovePath(Move move) {
+            this.move = move;
+        }
+
+        public String toString() {
+            if (next != null && move != null) {
+                return move.toString() + ", " + next.toString();
+            } else if (next == null && move != null) {
+                return move.toString();
+            }
+            return "";
+        }
     }
 }

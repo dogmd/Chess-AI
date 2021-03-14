@@ -98,7 +98,7 @@ public class MoveGenerator {
     }
 
     public static int canCastle(int start, int direction, Board board) {
-        if (board.hasMoved[start] || Piece.getType(board.board[start]) != Piece.KING) {
+        if ((start != 4 && start != 60) || board.hasMoved[start] || Piece.getType(board.board[start]) != Piece.KING) {
             return -1;
         }
         int row = start / 8;

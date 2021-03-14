@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.Stack;
 
 public class Game {
     Board board;
@@ -6,11 +7,16 @@ public class Game {
     int halfMoves, fullMoves;
     GameState gameState;
     ArrayList<Move> moveHistory;
+    Stack<Long> repeatHistory;
+    Stack<Integer> halfMoveHistory;
 
     public Game(String fen, String timeFormat) {
         moveHistory = new ArrayList<>();
+        repeatHistory = new Stack<>();
+        halfMoveHistory = new Stack<>();
         try {
             board = new Board(fen, this);
+            repeatHistory.push(board.zobristKey);
             String[] fields = fen.split(" ");
             halfMoves = Integer.parseInt(fields[4]);
             fullMoves = Integer.parseInt(fields[5]);
@@ -36,6 +42,7 @@ public class Game {
 
     public Game(Game game) {
         this.board = new Board(game.board);
+        this.board.game = this;
         board.updateInfo();
         this.blackMillis = game.blackMillis;
         this.whiteMillis = game.whiteMillis;
@@ -49,6 +56,10 @@ public class Game {
         for (Move move : game.moveHistory) {
             this.moveHistory.add(new Move(move));
         }
+        this.repeatHistory = new Stack<>();
+        this.repeatHistory.addAll(game.repeatHistory);
+        halfMoveHistory = new Stack<>();
+        this.halfMoveHistory.addAll(game.halfMoveHistory);
     }
 
     public int getMaterialScore() {
@@ -67,11 +78,9 @@ public class Game {
         if (move != null) {
             if (Piece.getType(move.actor) == Piece.PAWN || move.isCapture()) {
                 halfMoves = 0;
+                repeatHistory.clear();
             } else {
                 halfMoves++;
-                if (halfMoves >= 100) {
-                    gameState = GameState.DRAW;
-                }
             }
             if (board.activeColor == Piece.BLACK) {
                 fullMoves++;
@@ -86,7 +95,30 @@ public class Game {
         }
     }
 
+    public boolean hasBeenSeen(long key) {
+        for (long zKey : repeatHistory) {
+            if (zKey == key) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void checkSetEndState() {
+        if (halfMoves >= 100) {
+            gameState = GameState.DRAW;
+            return;
+        }
+        int repeatCount = 0;
+        for (long zobristKey : repeatHistory) {
+            if (zobristKey == board.zobristKey) {
+                repeatCount++;
+            }
+        }
+        if (repeatCount >= 3) {
+            gameState = GameState.DRAW;
+            return;
+        }
         if (board.isStalemate()) {
             gameState = GameState.DRAW;
         } else if (board.isCheckmate()) {
