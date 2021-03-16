@@ -211,7 +211,7 @@ class GameView extends JPanel implements ActionListener {
     public void makeMove(Move move) {
         selectedSquare = -1;
         options.clear();
-        Main.makeMove("HUMAN", game, move);
+        Main.makeMove("Human", game, move);
     }
 
     public int getSelectedPromotion(int sq, int x, int y) {
@@ -298,10 +298,10 @@ class GameView extends JPanel implements ActionListener {
         for (int i = 0; i < 8; i++) {
             for (int j = 0; j < 8; j++) {
                 int ind = i * 8 + j;
-                Graphics2D g2 = (Graphics2D) g;
-                g2.setStroke(new BasicStroke(smallOff / 5f));
-                g.setColor(Color.BLACK);
-                g.drawRect(margins + (j * squareWidth), margins + (i * squareWidth), squareWidth, squareWidth);
+//                Graphics2D g2 = (Graphics2D) g;
+//                g2.setStroke(new BasicStroke(smallOff / 5f));
+//                g.setColor(Color.BLACK);
+//                g.drawRect(margins + (j * squareWidth), margins + (i * squareWidth), squareWidth, squareWidth);
                 if ((i + j) % 2 == 0) { // square is light
                     g.setColor(LIGHT_GREY);
                 } else {
@@ -425,16 +425,18 @@ class GameView extends JPanel implements ActionListener {
         Graphics2D g2 = (Graphics2D) g;
         g2.setStroke(new BasicStroke(4));
         g.drawLine(margins + boardWidth + smallOff, margins + (squareWidth * 4) - 2, width + margins - smallOff, margins + (squareWidth * 4) - 2);
-        int lineWidth = (int)(width * (1 - BOARD_SCALE)) - smallOff;
-        g.setFont(robotoBold.deriveFont(lineWidth * 0.2f));
+        int lineWidth = (width - boardWidth) - 2 * smallOff;
+        g.setFont(robotoBold.deriveFont(smallOff * 2f));
         // Black's time
         String time = game.getRemainingTime(Piece.BLACK);
         int textWidth = g.getFontMetrics().stringWidth(time);
-        g.drawString(time, margins + smallOff + boardWidth + (lineWidth - textWidth) / 4, (squareWidth * 4) + margins - smallOff);
+        int centerOff = (lineWidth - textWidth) / 2;
+        g.drawString(time, margins + smallOff + boardWidth + centerOff, (squareWidth * 4) + margins - smallOff);
         // White's time
         time = game.getRemainingTime(Piece.WHITE);
         textWidth = g.getFontMetrics().stringWidth(time);
-        g.drawString(time, margins + smallOff + boardWidth + (lineWidth - textWidth) / 4, (squareWidth * 4) + g.getFont().getSize() + margins);
+        centerOff = (lineWidth - textWidth) / 2;
+        g.drawString(time, margins + smallOff + boardWidth + centerOff, (squareWidth * 4) + g.getFont().getSize() + margins);
     }
 
     public void drawEval(Graphics g) {
@@ -443,13 +445,19 @@ class GameView extends JPanel implements ActionListener {
         g.setFont(robotoBold.deriveFont(lineWidth * 0.1f));
         g.drawString(Main.eval, margins + smallOff + boardWidth, margins + boardWidth - smallOff);
         long evalCount = -1;
+        int currDepth = -1;
         if (Main.agent1 != null && Main.agent1.color == game.getActiveColor() && Main.agent1 instanceof ScottAgent) {
             evalCount = ((ScottAgent)Main.agent1).evalCount;
+            currDepth = ((ScottAgent)Main.agent1).currDepth;
         } else if (Main.agent2 != null && Main.agent2.color == game.getActiveColor() && Main.agent2 instanceof ScottAgent) {
             evalCount = ((ScottAgent)Main.agent2).evalCount;
+            currDepth = ((ScottAgent)Main.agent2).currDepth;
         }
         if (evalCount != -1) {
             g.drawString("Eval Count: " + evalCount, margins + smallOff + boardWidth, margins + boardWidth - g.getFont().getSize() - 2 * smallOff);
+        }
+        if (currDepth != -1) {
+            g.drawString("Depth: " + (currDepth - 1), margins + smallOff + boardWidth, margins + boardWidth - g.getFont().getSize() * 2 - 3 * smallOff);
         }
     }
 

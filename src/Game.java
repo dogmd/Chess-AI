@@ -96,8 +96,9 @@ public class Game {
     }
 
     public boolean hasBeenSeen(long key) {
-        for (long zKey : repeatHistory) {
-            if (zKey == key) {
+        // enhanced for can cause concurrent mod error
+        for (int i = 0; i < repeatHistory.size(); i++) {
+            if (repeatHistory.get(i) == key) {
                 return true;
             }
         }
@@ -179,16 +180,15 @@ public class Game {
         long time = getRemainingMillis(color);
         long min = (int)(time / 60.0 / 1000);
         long sec = (time - (min * 60 * 1000)) / 1000;
-        long millis = time - min * 60 * 1000 - sec * 1000;
         String negative = "";
         if (time < 0) {
             setWinner(Piece.getOpposite(color));
             negative = "-";
         }
-        return String.format("%s%02d:%02d.%02d", negative, Math.abs(min), Math.abs(sec), Math.abs(millis / 10));
+        return String.format("%s%02d:%02d", negative, Math.abs(min), Math.abs(sec));
     }
 
-    public String toFen() {
+    public String toFEN() {
         return board.toString() + " " +  halfMoves + " " + fullMoves;
     }
 
@@ -198,5 +198,21 @@ public class Game {
 
     public int getActiveColor() {
         return board.activeColor;
+    }
+
+    public String toPGN() {
+        StringBuilder pgn = new StringBuilder();
+        Game copy = new Game(Main.board, Main.time);
+
+        for (int i = 0; i < this.moveHistory.size(); i++) {
+            Move move = this.moveHistory.get(i);
+            if (i % 2 == 0) {
+                pgn.append((i / 2) + 1);
+                pgn.append(". ");
+            }
+            pgn.append(move.getAlgebraic(copy.board));
+            pgn.append(" ");
+        }
+        return pgn.toString();
     }
 }

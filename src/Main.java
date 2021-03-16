@@ -123,15 +123,21 @@ public class Main {
             if (Main.gameWindow != null) {
                 Main.gameWindow.gameView.selectedSquare = Board.EMPTY;
             }
-            System.out.println(source + " plays " + move.toString().replace("\n", ""));
+            String colorName = game.getActiveColor() == Piece.WHITE ? "WHITE" : "BLACK";
+            System.out.println("\n" + colorName + " (" + source + ") plays " + move.getAlgebraic(game.board));
             GameState oldState = game.gameState;
             keyHist.push(game.board.zobristKey);
             game.makeMove(move);
-            System.out.println(game.toFen());
+            if (agent1 instanceof ScottAgent) {
+                ((ScottAgent) agent1).copy.makeMove(move);
+            }
+            if (agent2 instanceof ScottAgent) {
+                ((ScottAgent) agent2).copy.makeMove(move);
+            }
+            System.out.println(game.toFEN() + "\n" + game.toPGN());
             if (evalEnabled) {
                 new Thread(new EvalUpdater(new ScottAgent("evaluator", game, game.getActiveColor()), game)).start();
             }
-            System.out.println(game.getMaterialScore() + "\n");
             if (Main.displayEnabled) {
                 if (oldState != game.gameState) {
                     Main.gameWindow.playNotify();

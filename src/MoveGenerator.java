@@ -76,7 +76,7 @@ public class MoveGenerator {
 
             if (onlyThreats || !board.threatening[currInd]) {
                 int oppositeInd = start - (currInd - start);
-                if (oppositeInd > 0 && oppositeInd <= 63) {
+                if (oppositeInd >= 0 && oppositeInd <= 63) {
                     if (!board.checkPath[oppositeInd]) {
                         moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                     }
@@ -252,8 +252,8 @@ public class MoveGenerator {
                     }
                 }
 
-                if (currInd == board.enPassantable) {
-                    if (!enPassantRevealsCheck(start, currInd)) {
+                if (currInd == board.enPassantable && !(inCheck && !blocksCheck(currInd))) {
+                    if (!enPassantRevealsCheck(start)) {
                         int ind = (start / 8) * 8 + currInd % 8;
                         Move move = new Move(board.board[start], board.board[ind], start, currInd, board);
                         move.type = Move.EN_PASSANT;
@@ -264,38 +264,42 @@ public class MoveGenerator {
         }
     }
 
-    public boolean enPassantRevealsCheck(int start, int end) {
+    public boolean enPassantRevealsCheck(int start) {
         int color = Piece.getColor(board.board[start]);
         int startRow = start / 8;
         int startCol = start % 8;
-        int endCol = end % 8;
-        int offset = endCol - startCol;
-        boolean hasKing = false, hasThreat = false;
-        for (int i = 1; i < 8; i++) {
-            int threatCol = startCol + i * offset;
-            int kingCol = startCol + i * -offset;
-            if (threatCol >= 0 && threatCol <= 7) {
-                int ind = startRow * 8 + threatCol;
-                if (board.board[ind] != Board.EMPTY) {
-                    int currColor = Piece.getColor(board.board[ind]);
-                    int type = Piece.getType(board.board[ind]);
-                    if ((currColor != color) && type == Piece.ROOK || type == Piece.QUEEN) {
-                        hasThreat = true;
+        int[] offsets = new int[]{-1, 1};
+        for (int offset : offsets) {
+            boolean hasKing = false, hasThreat = false;
+            for (int i = 1; i < 8; i++) {
+                int threatCol = startCol + i * offset;
+                int kingCol = startCol + i * -offset;
+                if (threatCol >= 0 && threatCol <= 7) {
+                    int ind = startRow * 8 + threatCol;
+                    if (board.board[ind] != Board.EMPTY) {
+                        int currColor = Piece.getColor(board.board[ind]);
+                        int type = Piece.getType(board.board[ind]);
+                        if ((currColor != color) && type == Piece.ROOK || type == Piece.QUEEN) {
+                            hasThreat = true;
+                        }
+                    }
+                }
+                if (kingCol >= 0 && kingCol <= 7) {
+                    int ind = startRow * 8 + kingCol;
+                    if (board.board[ind] != Board.EMPTY) {
+                        int currColor = Piece.getColor(board.board[ind]);
+                        int type = Piece.getType(board.board[ind]);
+                        if ((currColor == color) && type == Piece.KING) {
+                            hasKing = true;
+                        }
                     }
                 }
             }
-            if (kingCol >= 0 && kingCol <= 7) {
-                int ind = startRow * 8 + kingCol;
-                if (board.board[ind] != Board.EMPTY) {
-                    int currColor = Piece.getColor(board.board[ind]);
-                    int type = Piece.getType(board.board[ind]);
-                    if ((currColor == color) && type == Piece.KING) {
-                        hasKing = true;
-                    }
-                }
+            if (hasKing && hasThreat) {
+                return true;
             }
         }
-        return hasKing && hasThreat;
+        return false;
     }
 
     public void addPromotions(Move move, ArrayList<Move> moves) {

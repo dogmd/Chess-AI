@@ -1,28 +1,43 @@
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Stack;
+import java.util.Timer;
+import java.util.TimerTask;
+
 
 public class ScottAgent extends Agent {
     long evalCount;
-    int depth;
+    int currDepth, targetDepth;
     Game copy;
     Move bestMove;
     double bestScore;
-    int lastDepth;
+    Move lastBestMove;
+    double lastBestScore;
     boolean searchCaptures;
     MovePath bestPath;
+    MovePath lastBestPath;
     MovePath root;
+    TranspositionTable tt;
+    boolean abortSearch;
+    long maxMillis;
+    Timer timer;
+
+    static final double IMMEDIATE_MATE_SCORE = 100000;
 
     public ScottAgent(String name, Game game, int color) {
         super(name, game, color);
+        copy = new Game(game);
         evalCount = 0;
+        this.timer = new Timer();
+        tt = new TranspositionTable(copy.board);
         try {
             String[] fields = name.split(",");
-            this.depth = Integer.parseInt(fields[0]);
+            this.targetDepth = Integer.parseInt(fields[0]);
             this.searchCaptures = Boolean.parseBoolean(fields[1]);
+            this.maxMillis = Long.parseLong(fields[2]);
         } catch (Exception e) {
-            this.depth = 3;
+            this.targetDepth = -1;
             this.searchCaptures = true;
+            this.maxMillis = 1000;
         }
     }
 
@@ -45,6 +60,10 @@ public class ScottAgent extends Agent {
         if (g.board.pawnThreats[move.end]) {
             int endActorWeight = 350;//Piece.getWeight(move.actor, endRow, endCol, isEndgame);
             total -= endActorWeight;
+        }
+        Move storedMove = tt.getMove();
+        if (storedMove != null && storedMove.equals(move)) {
+            total += 10000;
         }
         return total;
     }
@@ -115,15 +134,36 @@ public class ScottAgent extends Agent {
     }
 
     public double search(int depth, double alpha, double beta, MovePath path) {
+        if (abortSearch) {
+            return 0;
+        }
+
         ArrayList<Move> moves = new ArrayList<>(copy.board.moves);
         if (moves.size() == 0) {
             if (copy.board.isChecked()) {
-                return -999999 + copy.fullMoves;
+                return -IMMEDIATE_MATE_SCORE + (this.currDepth - depth);
             }
             return 0;
-        } else if (depth != this.depth && game.hasBeenSeen(copy.board.zobristKey)) {
-            return 0;
+        } else if (depth != this.currDepth) {
+            if (game.hasBeenSeen(copy.board.zobristKey)) {
+                return 0;
+            }
+            alpha = Math.max(alpha, -IMMEDIATE_MATE_SCORE + (this.currDepth - depth));
+            beta = Math.min(beta, IMMEDIATE_MATE_SCORE - (this.currDepth - depth));
+            if (alpha >= beta) {
+                return alpha;
+            }
         }
+
+        double storedEval = tt.lookupEval(depth, alpha, beta);
+        if (storedEval != Double.MIN_VALUE) {
+            if (this.currDepth == depth) {
+                lastBestMove = tt.getMove();
+                lastBestScore = tt.entries[tt.getIndex()].eval;
+            }
+            return storedEval;
+        }
+
         if (depth == 0) {
             if (searchCaptures) {
                 return searchCaptures(alpha, beta, path);
@@ -137,51 +177,105 @@ public class ScottAgent extends Agent {
         }
         Collections.sort(moves);
 
+        int evalType = TranspositionTable.Entry.UPPER;
+        Move bestInPos = null;
+
         for (Move move : moves) {
             copy.makeMove(move);
             path.next = new MovePath(move);
             path.zobristKey = copy.board.zobristKey;
             double score = -search(depth - 1, -beta, -alpha, path.next);
             copy.unmakeMove(move);
-            if ((score > bestScore || bestMove == null) && depth == this.depth) {
-                bestScore = score;
-                bestMove = move;
-                bestPath = path.next;
-            }
-            if (score > beta) {
+
+            if (score >= beta) {
+                tt.storeEval(depth, beta, TranspositionTable.Entry.LOWER, move);
                 return beta;
             }
-            alpha = Math.max(alpha, score);
+
+            if (score > alpha) {
+                evalType = TranspositionTable.Entry.EXACT;
+                bestInPos = move;
+
+                alpha = score;
+                if (depth == this.currDepth) {
+                    lastBestScore = score;
+                    lastBestMove = move;
+                    lastBestPath = root.next;
+                }
+            }
         }
+
+        tt.storeEval(depth, alpha, evalType, bestInPos);
 
         return alpha;
     }
 
     public double getEval(Game game) {
-        this.copy = new Game(game);
         this.game = game;
         this.bestScore = -999999;
         this.bestMove = null;
-        this.lastDepth = this.depth;
-        search(depth, -999999, 999999, new MovePath());
+        search(targetDepth, -999999, 999999, new MovePath());
         return bestScore;
     }
 
     public Move getMove(Game game, int color) {
+        tt.clear(); // might help?
         this.evalCount = 0;
-        this.copy = new Game(game);
         this.game = game;
+        this.abortSearch = false;
+
         this.bestScore = -999999;
         this.bestMove = null;
-        this.lastDepth = this.depth;
-        long start = System.currentTimeMillis();
+        this.bestPath = null;
+        this.lastBestScore = -999999;
+        this.lastBestMove = null;
+        this.lastBestPath = null;
+
         root = new MovePath();
         root.zobristKey = copy.board.zobristKey;
-        search(depth, -999999, 999999, root);
-        if (!name.equals("evaluator")) {
-            System.out.println(System.currentTimeMillis() - start + "ms\n" + bestPath + " " + bestScore);
+
+        if (this.targetDepth == -1) {
+            targetDepth = Integer.MAX_VALUE;
         }
+        Interrupter interrupter = new Interrupter(this);
+        this.timer.schedule(interrupter, maxMillis);
+
+        for (currDepth = 1; currDepth <= targetDepth; currDepth++) {
+            search(currDepth, -9999999, 9999999, root);
+            if (abortSearch) {
+                break;
+            } else {
+                bestMove = lastBestMove;
+                bestScore = lastBestScore;
+                bestPath = lastBestPath;
+
+                if (Math.abs(bestScore) + 1000 > IMMEDIATE_MATE_SCORE) {
+                    int winningColor = color;
+                    if (bestScore < 0) {
+                        winningColor = Piece.getOpposite(color);
+                    }
+
+                    System.out.println((winningColor == Piece.WHITE ? "WHITE" : "BLACK") + " HAS MATE IN " + (currDepth + 1) / 2);
+                    break;
+                }
+            }
+        }
+        interrupter.cancel();
+
         return bestMove;
+    }
+
+    private class Interrupter extends TimerTask {
+        ScottAgent agent;
+
+        public Interrupter(ScottAgent agent) {
+            this.agent = agent;
+        }
+
+        @Override
+        public void run() {
+            agent.abortSearch = true;
+        }
     }
 
     private class MovePath {

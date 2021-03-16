@@ -36,6 +36,7 @@ public class Board {
         this.game = game;
         int index = 0;
         String[] fields = fen.split(" ");
+
         activeColor = fields[1].equals("w") ? Piece.WHITE : Piece.BLACK;
         for (int i = 0; i < fields[0].length(); i++) {
             char c = fields[0].charAt(i);
