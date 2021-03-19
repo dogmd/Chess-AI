@@ -2,6 +2,8 @@ import java.util.ArrayList;
 import java.util.Stack;
 
 public class Game {
+    static final String DEFAULT_TIME = "30:00/2|30:00/2";
+
     Board board;
     long blackMillis, whiteMillis, blackAdd, whiteAdd, turnStart;
     int halfMoves, fullMoves;
@@ -9,6 +11,10 @@ public class Game {
     ArrayList<Move> moveHistory;
     Stack<Long> repeatHistory;
     Stack<Integer> halfMoveHistory;
+
+    public Game() {
+        this(Board.DEFAULT_FEN, Game.DEFAULT_TIME);
+    }
 
     public Game(String fen, String timeFormat) {
         moveHistory = new ArrayList<>();
@@ -202,7 +208,7 @@ public class Game {
 
     public String toPGN() {
         StringBuilder pgn = new StringBuilder();
-        Game copy = new Game(Main.board, Main.time);
+        Game copy = new Game();
 
         for (int i = 0; i < this.moveHistory.size(); i++) {
             Move move = this.moveHistory.get(i);
@@ -212,6 +218,7 @@ public class Game {
             }
             pgn.append(move.getAlgebraic(copy.board));
             pgn.append(" ");
+            copy.makeMove(move);
         }
         return pgn.toString();
     }

@@ -1,6 +1,8 @@
 import java.util.ArrayList;
 
 public class Board {
+    static final String DEFAULT_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
     int[] board; // stores the int value of the piece at the index
     int[][] pieces; // stores index of pieces of each colors
     int[] pieceCounts; // stores the number of pieces of each color

@@ -4,8 +4,8 @@ import java.util.Stack;
 
 public class Main {
     static GameWindow gameWindow;
-    static String board = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    static String time = "30:00/2|30:00/2";
+    static String board = Board.DEFAULT_FEN;
+    static String time = Game.DEFAULT_TIME;
     static String agent1Class = null, agent2Class = null;
     static String agent1Name = "WHITE", agent2Name = "BLACK";
     static Agent agent1 = null, agent2 = null;
@@ -19,7 +19,15 @@ public class Main {
     static int runCount = 1;
     static Stack<Long> keyHist = new Stack<>();
 
+    static final String EVAL_SETTINGS = "-1,true,1000,-1";
+
     public static void main(String[] args) {
+        if (args.length == 0) {
+            args = new String[]{"-agent2", "ScottAgent", "-delay", "1"};
+        }
+
+        PrecomputedMoveData.calculate();
+
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             if (arg.equals("-time")) {
@@ -60,10 +68,15 @@ public class Main {
                 i++;
             }
         }
-        PrecomputedMoveData.calculate();
+
         Game game = new Game(board, time);
         System.out.println(game);
+
         gameWindow = new GameWindow(game);
+
+        if (evalEnabled) {
+            new Thread(new EvalUpdater(new ScottAgent(EVAL_SETTINGS, game, game.getActiveColor()), game)).start();
+        }
 
         if (agent1Class != null) {
             agent1 = getAgent(agent1Name, agent1Class, game);
@@ -73,6 +86,8 @@ public class Main {
             agent2 = getAgent(agent2Name, agent2Class, game);
             agent2.color = Piece.BLACK;
         }
+
+        gameWindow.setVisible(true);
 
         int numGames = 0;
         while ((agent1 != null || agent2 != null) && numGames < runCount) {
@@ -136,7 +151,7 @@ public class Main {
             }
             System.out.println(game.toFEN() + "\n" + game.toPGN());
             if (evalEnabled) {
-                new Thread(new EvalUpdater(new ScottAgent("evaluator", game, game.getActiveColor()), game)).start();
+                new Thread(new EvalUpdater(new ScottAgent(EVAL_SETTINGS, game, game.getActiveColor()), game)).start();
             }
             if (Main.displayEnabled) {
                 if (oldState != game.gameState) {

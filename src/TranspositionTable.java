@@ -1,5 +1,5 @@
 public class TranspositionTable {
-    static final int TT_SIZE = 256000;
+    static final int TT_SIZE = 1024000;
     Board board;
     Entry[] entries;
 

@@ -28,7 +28,6 @@ public class GameWindow extends JFrame implements KeyListener {
         this.gameView = new GameView(game);
         add("Center", this.gameView);
         addKeyListener(this);
-        setVisible(true);
     }
 
     @Override
@@ -78,7 +77,7 @@ public class GameWindow extends JFrame implements KeyListener {
                 clip.open(audioInputStream);
                 clip.start();
             } catch (Exception e) {
-                e.printStackTrace();
+                System.out.println("Failed to play " + path);
             }
         }
     }
@@ -443,7 +442,9 @@ class GameView extends JPanel implements ActionListener {
         g.setColor(Color.WHITE);
         int lineWidth = (int)(width * (1 - BOARD_SCALE)) - smallOff;
         g.setFont(robotoBold.deriveFont(lineWidth * 0.1f));
-        g.drawString(Main.eval, margins + smallOff + boardWidth, margins + boardWidth - smallOff);
+        if (Main.evalEnabled) {
+            g.drawString(Main.eval, margins + smallOff + boardWidth, margins + boardWidth - smallOff);
+        }
         long evalCount = -1;
         int currDepth = -1;
         if (Main.agent1 != null && Main.agent1.color == game.getActiveColor() && Main.agent1 instanceof ScottAgent) {

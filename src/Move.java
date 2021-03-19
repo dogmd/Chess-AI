@@ -14,6 +14,24 @@ public class Move implements Comparable<Move> {
     public static final int PROMOTION = 2;
     public static final int EN_PASSANT = 3;
 
+    public Move() {}
+
+    public Move(int move) {
+        int mask = 0b1111;
+        int sqMask = 0b111111;
+        type = move & mask;
+        promoteTo = (move >> 4) & mask;
+        start = (move >> 8) & sqMask;
+        end = (move >> 14) & sqMask;
+        actor = (move >> 20) & mask;
+        captured = (move >> 24) & mask;
+        firstMove = ((move >> 28) & mask) == 1;
+
+        if (captured == 0b1111) {
+            captured = -1;
+        }
+    }
+
     public Move(int actor, int captured, int start, int end, Board board) {
         this.actor = actor;
         this.captured = captured;
@@ -65,7 +83,7 @@ public class Move implements Comparable<Move> {
             return algebraic;
         }
 
-        algebraic = Piece.getFenChar(actor).toUpperCase();
+        algebraic = Piece.getChar(actor).toUpperCase();
 
         // check if ambiguous
         if (actorType != Piece.PAWN && actorType != Piece.KING) {
@@ -122,7 +140,31 @@ public class Move implements Comparable<Move> {
         return (int)(move.score - this.score);
     }
 
-    public boolean equals(Move move) {
+    public boolean equals(Object other) {
+        Move move;
+        if (other instanceof Move) {
+            move = (Move)other;
+        } else {
+            return false;
+        }
+
         return move.type == this.type && move.promoteTo == this.promoteTo && move.start == this.start && move.end == this.end && move.actor == this.actor && move.captured == this.captured && move.firstMove == this.firstMove;
+    }
+
+    public int hashCode() {
+        int captureHash = captured;
+        if (captured == -1) {
+            captureHash = 0b1111;
+        }
+
+        int hash = 0;
+        hash |= type;
+        hash |= promoteTo << 4;
+        hash |= start << 8;
+        hash |= end << 14;
+        hash |= actor << 20;
+        hash |= captureHash << 24;
+        hash |= (firstMove ? 1 : 0) << 28;
+        return hash;
     }
 }

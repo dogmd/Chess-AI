@@ -1,8 +1,4 @@
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Timer;
-import java.util.TimerTask;
-
+import java.util.*;
 
 public class ScottAgent extends Agent {
     long evalCount;
@@ -20,6 +16,9 @@ public class ScottAgent extends Agent {
     boolean abortSearch;
     long maxMillis;
     Timer timer;
+    Map<Long, Set<Move>> book;
+    Random rand;
+    int maxBookPly;
 
     static final double IMMEDIATE_MATE_SCORE = 100000;
 
@@ -29,15 +28,26 @@ public class ScottAgent extends Agent {
         evalCount = 0;
         this.timer = new Timer();
         tt = new TranspositionTable(copy.board);
+        rand = new Random();
+        book = BookMaker.getBook("openings-all.pgn");
         try {
             String[] fields = name.split(",");
             this.targetDepth = Integer.parseInt(fields[0]);
             this.searchCaptures = Boolean.parseBoolean(fields[1]);
             this.maxMillis = Long.parseLong(fields[2]);
+            this.maxBookPly = Integer.parseInt(fields[3]);
         } catch (Exception e) {
             this.targetDepth = -1;
             this.searchCaptures = true;
-            this.maxMillis = 1000;
+            this.maxMillis = 2000;
+            this.maxBookPly = BookMaker.MAX_PLY;
+        }
+
+        if (maxBookPly == -1) {
+            maxBookPly = Integer.MAX_VALUE;
+        }
+        if (targetDepth == -1) {
+            targetDepth = Integer.MAX_VALUE;
         }
     }
 
@@ -210,14 +220,6 @@ public class ScottAgent extends Agent {
         return alpha;
     }
 
-    public double getEval(Game game) {
-        this.game = game;
-        this.bestScore = -999999;
-        this.bestMove = null;
-        search(targetDepth, -999999, 999999, new MovePath());
-        return bestScore;
-    }
-
     public Move getMove(Game game, int color) {
         tt.clear(); // might help?
         this.evalCount = 0;
@@ -234,9 +236,21 @@ public class ScottAgent extends Agent {
         root = new MovePath();
         root.zobristKey = copy.board.zobristKey;
 
-        if (this.targetDepth == -1) {
-            targetDepth = Integer.MAX_VALUE;
+        if (copy.fullMoves <= maxBookPly && book.containsKey(copy.board.zobristKey)) {
+            Set<Move> candidates = book.get(copy.board.zobristKey);
+            int selectedIndex = rand.nextInt(candidates.size());
+            int i = 0;
+            for (Move move : candidates) {
+                if (selectedIndex == i) {
+                    copy.makeMove(move);
+                    bestScore = getScore(copy);
+                    copy.unmakeMove(move);
+                    return move;
+                }
+                i++;
+            }
         }
+
         Interrupter interrupter = new Interrupter(this);
         this.timer.schedule(interrupter, maxMillis);
 
