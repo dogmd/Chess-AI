@@ -42,6 +42,14 @@ public class GameWindow extends JFrame implements KeyListener {
             gameView.highlightedSquares.clear();
             gameView.assistSquares.clear();
             game.unmakeMove(undone);
+            if (Main.agent1 instanceof ScottAgent) {
+                ((ScottAgent) Main.agent1).copy.unmakeMove(undone);
+            }
+            if (Main.agent2 instanceof ScottAgent) {
+                ((ScottAgent) Main.agent2).copy.unmakeMove(undone);
+            }
+            Main.updateEval(game);
+
             gameView.selectedSquare = undone.start;
         } else if (e.getKeyCode() == KeyEvent.VK_T) {
             gameView.showThreatened = !gameView.showThreatened;

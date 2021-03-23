@@ -77,7 +77,7 @@ public class MoveGenerator {
             if (onlyThreats || !board.threatening[currInd]) {
                 int oppositeInd = start - (currInd - start);
                 if (oppositeInd >= 0 && oppositeInd <= 63) {
-                    if (!board.checkPath[oppositeInd]) {
+                    if (!board.checkPath[oppositeInd] || Piece.getType(board.board[oppositeInd]) == Piece.PAWN) {
                         moves.add(new Move(board.board[start], currPiece, start, currInd, board));
                     }
                 } else {

@@ -75,7 +75,7 @@ public class Main {
         gameWindow = new GameWindow(game);
 
         if (evalEnabled) {
-            new Thread(new EvalUpdater(new ScottAgent(EVAL_SETTINGS, game, game.getActiveColor()), game)).start();
+            updateEval(game);
         }
 
         if (agent1Class != null) {
@@ -109,6 +109,10 @@ public class Main {
                 }
             }
         }
+    }
+
+    public static void updateEval(Game game) {
+        new Thread(new EvalUpdater(new ScottAgent(EVAL_SETTINGS, game, game.getActiveColor()), game)).start();
     }
 
     public static boolean makeAgentMove(Agent agent, Game game) {
@@ -151,7 +155,7 @@ public class Main {
             }
             System.out.println(game.toFEN() + "\n" + game.toPGN());
             if (evalEnabled) {
-                new Thread(new EvalUpdater(new ScottAgent(EVAL_SETTINGS, game, game.getActiveColor()), game)).start();
+                updateEval(game);
             }
             if (Main.displayEnabled) {
                 if (oldState != game.gameState) {
