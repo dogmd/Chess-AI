@@ -1,10 +1,10 @@
 public abstract class Agent {
-    String name;
+    String settings;
     Game game;
     int color;
 
-    public Agent(String name, Game game, int color) {
-        this.name = name;
+    public Agent(String settings, Game game, int color) {
+        this.settings = settings;
         this.game = game;
         this.color = color;
     }

@@ -7,7 +7,7 @@ public class Main {
     static String board = Board.DEFAULT_FEN;
     static String time = Game.DEFAULT_TIME;
     static String agent1Class = null, agent2Class = null;
-    static String agent1Name = "WHITE", agent2Name = "BLACK";
+    static String agent1Settings = "WHITE", agent2Settings = "BLACK";
     static Agent agent1 = null, agent2 = null;
     static Move suggestedMove;
     static String eval = "Eval: 0.00";
@@ -48,11 +48,11 @@ public class Main {
             } else if (arg.equals("-delay")) {
                 delayMillis = Long.parseLong(args[i + 1]);
                 i++;
-            } else if (arg.equals("-name1")) {
-                agent1Name = args[i + 1];
+            } else if (arg.equals("-settings1")) {
+                agent1Settings = args[i + 1];
                 i++;
-            } else if (arg.equals("-name2")) {
-                agent2Name = args[i + 1];
+            } else if (arg.equals("-settings2")) {
+                agent2Settings = args[i + 1];
                 i++;
             } else if (arg.equals("-runcount")) {
                 runCount = Integer.parseInt(args[i + 1]);
@@ -79,11 +79,11 @@ public class Main {
         }
 
         if (agent1Class != null) {
-            agent1 = getAgent(agent1Name, agent1Class, game);
+            agent1 = getAgent(agent1Settings, agent1Class, game);
             agent1.color = Piece.WHITE;
         }
         if (agent2Class != null) {
-            agent2 = getAgent(agent2Name, agent2Class, game);
+            agent2 = getAgent(agent2Settings, agent2Class, game);
             agent2.color = Piece.BLACK;
         }
 
@@ -128,7 +128,7 @@ public class Main {
                 return true;
             }
             if (game.gameState == GameState.ACTIVE && agent != null && game.getActiveColor() == agent.color) {
-                makeMove(agent.name, game, agent.getMove(game, agent.color));
+                makeMove(agent.settings, game, agent.getMove(game, agent.color));
             }
         } catch (ConcurrentModificationException e) {
             System.out.println("Concurrent modification error.");
@@ -170,15 +170,15 @@ public class Main {
         }
     }
 
-    public static Agent getAgent(String agentName, String agentClassname, Game game) {
+    public static Agent getAgent(String agentSettings, String agentClassname, Game game) {
         try {
             Class agentClass = Class.forName(agentClassname);
             Class[] types = new Class[]{String.class, Game.class, int.class};
             Constructor constructor = agentClass.getConstructor(types);
-            Object[] parameters = new Object[]{agentName, game, Piece.WHITE};
+            Object[] parameters = new Object[]{agentSettings, game, Piece.WHITE};
             return (Agent) constructor.newInstance(parameters);
         } catch (Exception e) {
-            System.out.println("Error loading agent " + agentName);
+            System.out.println("Error loading agent " + agentSettings);
             e.printStackTrace();
             return null;
         }

@@ -30,7 +30,7 @@ public class Game {
             System.out.println("Error in FEN String: ");
             e.printStackTrace();
         }
-        String[] times = timeFormat.split("\\|");
+        String[] times = timeFormat.split(";");
         String[] time = times[0].split("/");
         int min = Integer.parseInt(time[0].split(":")[0]);
         int sec = Integer.parseInt(time[0].split(":")[1]);
