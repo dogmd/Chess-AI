@@ -5,6 +5,9 @@ To compile and run this yourself, import the repository as an IntelliJ project, 
 
 ![](screenshot.png?raw=true)
 
+### Techniques
+I use iterative deepening with alpha beta pruning, transposition table lookup, and precomputed book openings. Additionally, I use a quiescence search to only evaluate quiet positions.
+
 | Command Line Argument                              | Description                                                                                                                                                                                                                                                    |
 |----------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | -time MW:SW/AW;MB:SB/AB                            | Sets the timer to specified format, -1 if no timer.<br><br>MW - Minutes white<br>SW - Seconds white<br>AW - Time added per move white<br>MB - Minutes black<br>SB - Seconds black<br>AB - Time adder per move black                                            |
